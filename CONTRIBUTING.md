@@ -32,6 +32,7 @@ scripts/check.sh
 npm ci
 npx playwright install chromium
 npm run test:e2e
+cargo install cargo-deny --version 0.20.2 --locked
 cargo deny check licenses bans sources
 ```
 

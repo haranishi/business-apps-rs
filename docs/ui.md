@@ -43,6 +43,7 @@ flowchart LR
 
 At 390 px, navigation becomes a horizontal app picker and the table scrolls within its container.
 Dialogs keep their own scrolling area; cancel returns focus to the invoking button.
+While a write is pending, inputs, cancel, and Escape are locked to keep later drafts from being lost.
 User text is rendered with `textContent`; it never becomes executable HTML.
 
 ## Interaction checks

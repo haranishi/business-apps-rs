@@ -7,7 +7,7 @@ The project does not yet offer production team collaboration or kintone API comp
 | --- | --- | --- |
 | Local preview | Typed app schemas, persistent CRUD, revision conflicts, browser UI | Domain/API/reopen/browser tests and a measured baseline |
 | Team foundation | Login, memberships, app/record permissions, audit history | Authorization matrix, isolation tests, threat model |
-| Rich schemas | Schema migrations, select/date fields, views, import/export | Old-record migration tests and recovery procedures |
+| Rich schemas | Schema migrations, select/date/exact-decimal fields, views, import/export | Old-record migration tests and recovery procedures |
 | Indexed queries | Typed filters, indexed sorting and full-text search | Query plans, realistic workloads, latency/memory results |
 | Workflow | State transitions, approvals and integrations | Permission/state-machine tests and idempotent delivery |
 | Deployment | Supported self-hosting, backup/restore and packaged releases | Restore tests, notices/SBOM, and supported-platform CI |

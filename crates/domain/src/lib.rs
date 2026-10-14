@@ -122,8 +122,26 @@ pub fn validate_values(fields: &[Field], values: &Values) -> Result<(), Validati
                     return Err(invalid(format!("{} is required.", field.label)));
                 }
             }
-            FieldKind::Number if !value.is_number() => {
-                return Err(invalid(format!("{} must be a number.", field.label)));
+            FieldKind::Number => {
+                let number = value
+                    .as_number()
+                    .ok_or_else(|| invalid(format!("{} must be a number.", field.label)))?;
+                const MAX_SAFE: i64 = 9_007_199_254_740_991;
+                let safe = if let Some(integer) = number.as_i64() {
+                    (-MAX_SAFE..=MAX_SAFE).contains(&integer)
+                } else if let Some(integer) = number.as_u64() {
+                    integer <= MAX_SAFE as u64
+                } else {
+                    number
+                        .as_f64()
+                        .is_some_and(|float| float.is_finite() && float.abs() <= MAX_SAFE as f64)
+                };
+                if !safe {
+                    return Err(invalid(format!(
+                        "{} must be within the browser-safe numeric range ±9,007,199,254,740,991.",
+                        field.label
+                    )));
+                }
             }
             FieldKind::Boolean if !value.is_boolean() => {
                 return Err(invalid(format!("{} must be a boolean.", field.label)));
@@ -188,6 +206,28 @@ mod tests {
         assert!(validate_app(&app).is_err());
         app.name = " ".into();
         assert!(validate_app(&app).is_err());
+    }
+
+    #[test]
+    fn unsafe_numbers_are_rejected_instead_of_silently_rounded() {
+        let fields = schema().fields;
+        for quantity in [
+            json!(9_007_199_254_740_992_i64),
+            json!(-9_007_199_254_740_992_i64),
+            json!(u64::MAX),
+            json!(1e20),
+        ] {
+            let values = json!({"name":"x","stock":quantity,"active":false});
+            assert!(validate_values(&fields, values.as_object().unwrap()).is_err());
+        }
+        for quantity in [
+            json!(9_007_199_254_740_991_i64),
+            json!(-9_007_199_254_740_991_i64),
+            json!(12.5),
+        ] {
+            let values = json!({"name":"x","stock":quantity,"active":false});
+            validate_values(&fields, values.as_object().unwrap()).unwrap();
+        }
     }
 
     #[test]

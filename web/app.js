@@ -3,6 +3,21 @@ const $ = (id) => document.getElementById(id);
 const state = { apps: [], active: null, records: [], next: null, cursors: [null], page: 0, request: 0, loading: false };
 let editingRecord = null;
 let fieldCounter = 0;
+let recordBusy = false;
+let appBusy = false;
+
+function setRecordBusy(busy) {
+  recordBusy = busy;
+  for (const input of $("record-form").querySelectorAll("input, button")) input.disabled = busy;
+  $("save-record").textContent = busy ? "保存中…" : "保存";
+}
+
+function setAppBusy(busy) {
+  appBusy = busy;
+  for (const input of $("app-form").querySelectorAll("input, select, button")) input.disabled = busy;
+  $("save-app").textContent = busy ? "作成中…" : "アプリを作成";
+  if (!busy) refreshBuilder();
+}
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -114,17 +129,18 @@ function addField(label = "", kind = "text", required = false) {
   const row = element("div", undefined, "field-row"); row.dataset.key = key;
   const nameLabel = element("label", "項目名"); const name = element("input");
   name.required = true; name.maxLength = 80; name.value = label; name.placeholder = "例：顧客名"; name.className = "field-label"; nameLabel.append(name);
-  const kindLabel = element("label", "種類"); const select = element("select"); select.className = "field-kind";
+  const kindBlock = element("div"); const kindLabel = element("label", "種類"); const select = element("select"); select.className = "field-kind";
+  select.id = `kind-${key}`; kindLabel.htmlFor = select.id;
   for (const [value, text] of [["text", "テキスト"], ["number", "数値"], ["boolean", "チェック"]]) {
     const option = element("option", text); option.value = value; select.append(option);
   }
-  select.value = kind; kindLabel.append(select);
+  select.value = kind; kindBlock.append(kindLabel, select);
   const requiredLabel = element("label", undefined, "checkbox-label"); const checkbox = element("input");
   checkbox.type = "checkbox"; checkbox.checked = required; checkbox.className = "field-required";
   requiredLabel.append(checkbox, element("span", "必須"));
   const remove = element("button", "×", "remove"); remove.type = "button"; remove.setAttribute("aria-label", "項目を削除");
   remove.addEventListener("click", () => { row.remove(); refreshBuilder(); });
-  row.append(nameLabel, kindLabel, requiredLabel, remove); $("field-builder").append(row); refreshBuilder();
+  row.append(nameLabel, kindBlock, requiredLabel, remove); $("field-builder").append(row); refreshBuilder();
 }
 
 function refreshBuilder() {
@@ -134,6 +150,7 @@ function refreshBuilder() {
 }
 
 function openApp(template) {
+  if (appBusy) return;
   $("app-form").reset(); $("app-error").textContent = ""; $("field-builder").replaceChildren(); fieldCounter = 0;
   $("save-app").disabled = false;
   $("app-name").value = template?.name || "";
@@ -143,6 +160,7 @@ function openApp(template) {
 }
 
 function openRecord(record = null) {
+  if (recordBusy) return;
   editingRecord = record;
   $("record-form").reset(); $("record-error").textContent = "";
   $("record-dialog-title").textContent = record ? "レコードを編集" : "レコードを追加";
@@ -156,7 +174,7 @@ function openRecord(record = null) {
     if (field.kind === "boolean") { input.type = "checkbox"; input.checked = value === true; label.className = "checkbox-label"; label.prepend(input); }
     else {
       input.type = field.kind === "number" ? "number" : "text";
-      if (field.kind === "number") input.step = "any";
+      if (field.kind === "number") { input.step = "any"; input.min = String(-Number.MAX_SAFE_INTEGER); input.max = String(Number.MAX_SAFE_INTEGER); }
       else input.maxLength = 4000;
       input.required = field.required; input.value = value ?? ""; label.htmlFor = input.id;
     }
@@ -191,20 +209,22 @@ $("first-app").addEventListener("click", () => openApp());
 $("customer-template").addEventListener("click", () => openApp({ name: "顧客管理", fields: [["顧客名", "text", true], ["連絡先", "text", false], ["対応済み", "boolean", false]] }));
 $("inventory-template").addEventListener("click", () => openApp({ name: "在庫管理", fields: [["商品名", "text", true], ["数量", "number", true], ["メモ", "text", false]] }));
 $("add-field").addEventListener("click", () => addField());
-for (const button of document.querySelectorAll(".close-app")) button.addEventListener("click", () => $("app-dialog").close());
-for (const button of document.querySelectorAll(".close-record")) button.addEventListener("click", () => $("record-dialog").close());
+for (const button of document.querySelectorAll(".close-app")) button.addEventListener("click", () => { if (!appBusy) $("app-dialog").close(); });
+for (const button of document.querySelectorAll(".close-record")) button.addEventListener("click", () => { if (!recordBusy) $("record-dialog").close(); });
 $("new-record").addEventListener("click", () => openRecord());
+$("record-dialog").addEventListener("cancel", (event) => { if (recordBusy) event.preventDefault(); });
+$("app-dialog").addEventListener("cancel", (event) => { if (appBusy) event.preventDefault(); });
 
 $("app-form").addEventListener("submit", async (event) => {
-  event.preventDefault(); if ($("save-app").disabled) return;
-  $("save-app").disabled = true; $("app-error").textContent = "";
+  event.preventDefault(); if (appBusy) return;
+  setAppBusy(true); $("app-error").textContent = "";
   const fields = Array.from($("field-builder").children, (row) => ({ key: row.dataset.key, label: row.querySelector(".field-label").value.trim(), kind: row.querySelector(".field-kind").value, required: row.querySelector(".field-required").checked }));
   try {
     const app = await api("/apps", "POST", { name: $("app-name").value.trim(), fields });
     state.apps.unshift(app); $("app-dialog").close();
     await selectApp(app); status("アプリを作成しました。レコードを追加できます。"); $("new-record").focus();
   } catch (error) { $("app-error").textContent = error.message; }
-  finally { $("save-app").disabled = false; }
+  finally { setAppBusy(false); }
 });
 
 $("search-form").addEventListener("submit", async (event) => { event.preventDefault(); state.cursors = [null]; state.page = 0; await loadRecords(); });
@@ -220,27 +240,30 @@ $("previous-page").addEventListener("click", async () => {
 });
 
 $("record-form").addEventListener("submit", async (event) => {
-  event.preventDefault(); if ($("save-record").disabled) return;
-  $("save-record").disabled = true; $("record-error").textContent = "";
+  event.preventDefault(); if (recordBusy) return;
+  setRecordBusy(true); $("record-error").textContent = "";
   const path = `/apps/${state.active.id}/records`;
   try {
     const values = recordValues();
     await api(editingRecord ? `${path}/${editingRecord.id}` : path, editingRecord ? "PUT" : "POST", editingRecord ? { revision: editingRecord.revision, values } : { values });
     await refreshAfterSave("レコードを保存しました。");
   } catch (error) { $("record-error").textContent = error.message; $("reload-record").hidden = error.status !== 409; }
-  finally { $("save-record").disabled = false; }
+  finally { setRecordBusy(false); }
 });
 
 $("reload-record").addEventListener("click", async () => {
-  try { openRecord(await api(`/apps/${state.active.id}/records/${editingRecord.id}`)); }
+  if (recordBusy) return;
+  setRecordBusy(true);
+  try { const latest = await api(`/apps/${state.active.id}/records/${editingRecord.id}`); setRecordBusy(false); openRecord(latest); }
   catch (error) { $("record-error").textContent = error.message; }
+  finally { setRecordBusy(false); }
 });
 $("delete-record").addEventListener("click", async () => {
-  if (!editingRecord || !confirm("このレコードを削除します。よろしいですか？")) return;
-  $("delete-record").disabled = true;
+  if (recordBusy || !editingRecord || !confirm("このレコードを削除します。よろしいですか？")) return;
+  setRecordBusy(true);
   try { await api(`/apps/${state.active.id}/records/${editingRecord.id}?revision=${editingRecord.revision}`, "DELETE"); await refreshAfterSave("レコードを削除しました。"); }
   catch (error) { $("record-error").textContent = error.message; $("reload-record").hidden = error.status !== 409; }
-  finally { $("delete-record").disabled = false; }
+  finally { setRecordBusy(false); }
 });
 
 try {

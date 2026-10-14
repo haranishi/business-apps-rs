@@ -34,6 +34,8 @@ Supported `kind` values are `text`, `number`, and `boolean`.
 Unknown fields, wrong types, missing required values, and whitespace-only required text are rejected.
 Optional null values are accepted. A required boolean accepts both true and false.
 Schemas have 1–32 fields; labels/names have 1–80 characters; text values have at most 4,000 characters.
+Numbers are IEEE-754-compatible and bounded to ±9,007,199,254,740,991; larger values are rejected.
+Decimal fractions use floating-point semantics; exact currency/decimal fields are a future schema feature.
 A record body is bounded to 256 KiB. Listing returns at most 100 records.
 
 ## Paging, search, and revisions
