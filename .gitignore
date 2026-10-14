@@ -1,0 +1,12 @@
+/target/
+/.data/
+/.cache/
+/.artifacts/
+/node_modules/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.DS_Store
