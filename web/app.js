@@ -68,6 +68,7 @@ async function selectApp(app) {
   $("table-caption").textContent = `${app.name}のレコード一覧`;
   status(""); renderApps(); renderRecords();
   await loadRecords();
+  document.querySelector(".table-scroll").scrollLeft = 0;
 }
 
 function renderRecords() {
@@ -79,7 +80,9 @@ function renderRecords() {
     const row = element("tr");
     for (const field of state.active.fields) {
       const value = Object.hasOwn(record.values, field.key) ? record.values[field.key] : null;
-      row.append(element("td", value === null ? "—" : typeof value === "boolean" ? (value ? "はい" : "いいえ") : String(value)));
+      const text = value === null ? "—" : typeof value === "boolean" ? (value ? "はい" : "いいえ") : String(value);
+      const cell = element("td"); cell.title = text;
+      cell.append(element("span", text, "cell-value")); row.append(cell);
     }
     const action = element("td");
     const edit = element("button", "編集");
@@ -200,7 +203,7 @@ async function refreshAfterSave(message) {
   $("record-dialog").close(); $("new-record").focus();
   state.cursors = [null]; state.page = 0;
   const refreshed = await loadRecords();
-  if (refreshed) status(message);
+  if (refreshed) { status(message); document.querySelector(".table-scroll").scrollLeft = 0; }
   else if (refreshed === false) status(`${message} 一覧を更新できませんでした。再読み込みしてください。`);
 }
 
@@ -270,3 +273,8 @@ try {
   state.apps = await api("/apps"); renderApps();
   if (state.apps.length) await selectApp(state.apps[0]);
 } catch { status("アプリを読み込めませんでした。サーバーの起動を確認して、ページを再読み込みしてください。"); }
+
+const tableContainer = document.querySelector(".table-scroll");
+new ResizeObserver(() => {
+  $("table-hint").hidden = tableContainer.scrollWidth <= tableContainer.clientWidth + 1;
+}).observe(tableContainer);

@@ -41,10 +41,19 @@ flowchart LR
 
 ![App navigation, search and record table, with an editing dialog](assets/ui-layout.svg)
 
+Table values keep short strings on one line; long values are shortened visually and remain available in the editor.
 At 390 px, navigation becomes a horizontal app picker and the table scrolls within its container.
 Dialogs keep their own scrolling area; cancel returns focus to the invoking button.
 While a write is pending, inputs, cancel, and Escape are locked to keep later drafts from being lost.
 User text is rendered with `textContent`; it never becomes executable HTML.
+
+## Current preview
+
+These screenshots use synthetic customer/contact data.
+
+![Customer records in the current desktop preview](assets/preview.png)
+
+![Typed fields in the app builder](assets/builder.png)
 
 ## Interaction checks
 
