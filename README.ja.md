@@ -10,9 +10,12 @@
 
 ## まず1つ作る
 
-Rust stableを用意し、このリポジトリで実行します。最低対応バージョンは1.88です。
+Rust stableとCコンパイラを用意します。最低対応バージョンは1.88です。
+最初の実装は[Draft PR 1](https://github.com/haranishi/business-apps-rs/pull/1)にあります。マージ前は次のブランチを使ってください。
 
 ```sh
+git clone --branch feat/local-app-builder https://github.com/haranishi/business-apps-rs.git
+cd business-apps-rs
 cargo run -p business-apps-server
 ```
 
@@ -44,7 +47,7 @@ cargo deny check licenses bans sources
 開発時はRustに加えてNode.js 22以上、Python 3.10以上を使います。
 [テスト環境](docs/testing.md)は一時DBを使い、更新競合・データ分離・再起動・画面操作を検証します。
 [開発ハーネス](HARNESS.md)と[専用スキル](.agents/skills/business-apps/SKILL.md)で、変更ごとの受け入れ条件と検証をそろえます。
-速度はreleaseビルドとベンチマークで測り、条件と結果を併記します。
+速度はreleaseビルドとベンチマークで測り、[条件と実測値](docs/performance.md)を公開しています。
 
 ## ライセンス
 

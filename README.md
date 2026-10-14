@@ -10,9 +10,12 @@ This is an original implementation, independent of Cybozu and kintone. It does n
 
 ## Try your first app
 
-Install Rust stable (minimum 1.88), clone this repository, then:
+Install Rust stable (minimum 1.88) and a C toolchain (Xcode Command Line Tools on macOS; GCC/Clang on Linux).
+The first implementation is in [Draft PR 1](https://github.com/haranishi/business-apps-rs/pull/1); until it is merged, clone its branch:
 
 ```sh
+git clone --branch feat/local-app-builder https://github.com/haranishi/business-apps-rs.git
+cd business-apps-rs
 cargo run -p business-apps-server
 ```
 
@@ -35,7 +38,7 @@ flowchart LR
 The browser assets are embedded in one server binary. Running it requires no Node or frontend build.
 The domain layer stays independent of transport and storage; revision checks prevent stale edits from overwriting new changes.
 Record listing uses an app-scoped cursor index. Text search is a per-app scan of string values.
-Performance claims require the reproducible [benchmark](docs/testing.md), rather than assumptions about Rust.
+Performance claims require the reproducible [benchmark and measured baseline](docs/performance.md), rather than assumptions about Rust.
 
 ## Read the design or join in
 

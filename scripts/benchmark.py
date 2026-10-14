@@ -55,7 +55,9 @@ def main():
             raise RuntimeError(f"benchmark request failed: HTTP {response.status}")
         return json.loads(body) if body else None
 
-    with tempfile.TemporaryDirectory(prefix="business-apps-benchmark-") as temporary:
+    artifact_directory = root / ".artifacts"
+    artifact_directory.mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="benchmark-", dir=artifact_directory) as temporary:
         database = Path(temporary) / "bench.sqlite"
         env = {**os.environ, "BIZAPP_DB": str(database), "BIZAPP_BIND": f"127.0.0.1:{port}"}
         process = subprocess.Popen([str(binary)], cwd=root, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -106,6 +108,7 @@ def main():
                 "machine": {"os": platform.system(), "architecture": platform.machine(), "logical_cpus": os.cpu_count()},
                 "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
                 "initial_records": args.records, "concurrency": args.concurrency, "sqlite": "WAL / FULL synchronous",
+                "database_storage": "project .artifacts directory; SSD-backed when the project resides on SSD",
                 "scope": "end-to-end localhost HTTP, including Python client overhead; text search scans string values",
                 "workloads": results}
             if args.output:

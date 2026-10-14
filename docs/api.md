@@ -19,6 +19,8 @@ The server accepts only local Host values and same-origin browser requests.
 
 ## Create an app and record
 
+The examples assume an empty database; otherwise use the app ID returned by the first request.
+
 ```sh
 curl -fsS http://127.0.0.1:8080/api/v1/apps \
   -H 'Content-Type: application/json' -H 'X-Bizapp-Request: 1' \
