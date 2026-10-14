@@ -1,0 +1,14 @@
+name: Design or first contribution
+description: Discuss a user task, an implementation boundary, or a small contribution.
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: User task and expected result
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Relevant files and how to verify the change
+      description: Small documentation, reproduction, accessibility, and translation contributions are welcome.
