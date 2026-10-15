@@ -13,6 +13,8 @@ The server accepts only local Host values and same-origin browser requests.
 | POST | `/api/v1/apps` | Create an app schema |
 | GET | `/api/v1/apps/{app_id}` | Read the current schema and app revision |
 | PUT | `/api/v1/apps/{app_id}` | Safely replace schema presentation/add optional fields if app revision matches |
+| GET/POST | `/api/v1/apps/{app_id}/views` | List/create [named record views](saved-views.md) |
+| GET/PUT/DELETE | `/api/v1/apps/{app_id}/views/{view_id}` | Read/update/delete an app-scoped view with revision checks |
 | GET | `/api/v1/apps/{app_id}/records` | List records using `limit`, `before`, optional `q` and typed [filter](record-filters.md) |
 | GET | `/api/v1/apps/{app_id}/records.csv` | Export all matches using optional `q`/`filter`; see [CSV rules](csv.md) |
 | POST | `/api/v1/apps/{app_id}/records` | Create a validated record |

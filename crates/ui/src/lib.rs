@@ -63,6 +63,12 @@ mod layout;
 mod records;
 #[cfg(target_arch = "wasm32")]
 mod runtime;
+#[cfg(target_arch = "wasm32")]
+mod view_editor;
+#[cfg(target_arch = "wasm32")]
+mod view_layout;
+#[cfg(target_arch = "wasm32")]
+mod views;
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen(start)]

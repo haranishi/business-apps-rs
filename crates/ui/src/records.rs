@@ -33,8 +33,9 @@ impl Ui {
     }
 
     pub async fn select_app(&self, app: App) -> Result {
-        {
+        let (selection, catalog_request) = {
             let mut state = self.state.borrow_mut();
+            state.app_selection += 1;
             state.app_form_request += 1;
             state.active = Some(app.clone());
             state.records.clear();
@@ -45,7 +46,16 @@ impl Ui {
             state.filter = None;
             state.records_ready = false;
             state.loading = true;
-        }
+            state.views.list.clear();
+            state.views.selected = None;
+            state.views.loaded = false;
+            state.views.loading = false;
+            state.views.request += 1;
+            state.views.editor_request += 1;
+            state.views.editor = None;
+            state.views.busy = false;
+            (state.app_selection, state.views.request)
+        };
         set_value(&id("search"), "");
         self.reset_filter_controls()?;
         hidden(&id("welcome"), true);
@@ -54,9 +64,23 @@ impl Ui {
         text("table-caption", &format!("{}のレコード一覧", app.name));
         text("status", "");
         self.render_apps()?;
+        self.render_views()?;
+        text("view-status", "");
         self.render_records()?;
         self.load_records().await?;
-        query(&id("app-workspace"), ".table-scroll").set_scroll_left(0);
+        // An explicit catalog retry supersedes this automatic continuation,
+        // even when a newer search keeps the same app selection.
+        let catalog_current = {
+            let state = self.state.borrow();
+            state.app_selection == selection && state.views.request == catalog_request
+        };
+        if !catalog_current {
+            return Ok(());
+        }
+        self.load_views(app.id).await?;
+        if self.state.borrow().app_selection == selection {
+            query(&id("app-workspace"), ".table-scroll").set_scroll_left(0);
+        }
         Ok(())
     }
 
@@ -68,7 +92,8 @@ impl Ui {
         let head = id("table-head");
         clear(&head);
         let row = child(&head, "tr", &[], None)?;
-        for field in &app.fields {
+        let visible_fields = crate::views::visible_fields(app, state.views.selected.as_ref());
+        for field in &visible_fields {
             child(&row, "th", &[], Some(&field.label))?;
         }
         child(&row, "th", &[], Some("操作"))?;
@@ -76,7 +101,7 @@ impl Ui {
         clear(&body);
         for record in &state.records {
             let row = child(&body, "tr", &[], None)?;
-            for field in &app.fields {
+            for field in &visible_fields {
                 let display = display_value(record.values.get(&field.key));
                 let cell = child(&row, "td", &[("title", &display)], None)?;
                 child(&cell, "span", &[("class", "cell-value")], Some(&display))?;
@@ -104,7 +129,7 @@ impl Ui {
                 "td",
                 &[
                     ("class", "empty-cell"),
-                    ("colspan", &(app.fields.len() + 1).to_string()),
+                    ("colspan", &(visible_fields.len() + 1).to_string()),
                 ],
                 Some(message),
             )?;
@@ -132,6 +157,7 @@ impl Ui {
         );
         self.update_table_hint();
         self.render_query_summary();
+        self.update_view_controls();
         Ok(())
     }
 

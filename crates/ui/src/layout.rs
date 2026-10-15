@@ -75,6 +75,7 @@ pub fn mount() -> Result {
     workspace(&main)?;
     app_dialog(&root)?;
     record_dialog(&root)?;
+    crate::view_layout::dialog(&root)?;
     Ok(())
 }
 
@@ -157,6 +158,7 @@ fn workspace(main: &web_sys::Element) -> Result {
         &[("id", "new-record"), ("class", "primary")],
         Some("＋ レコードを追加"),
     )?;
+    crate::view_layout::toolbar(&workspace)?;
     let search = child(
         &workspace,
         "form",
@@ -257,7 +259,7 @@ fn workspace(main: &web_sys::Element) -> Result {
         &export,
         "span",
         &[("class", "muted")],
-        Some("検索結果を全ページ出力（最大10,000件・16 MiB）"),
+        Some("検索結果の全ページ・全項目を出力（最大10,000件・16 MiB）"),
     )?;
     child(
         &workspace,

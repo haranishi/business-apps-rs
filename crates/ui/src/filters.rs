@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{dom::*, runtime::Ui};
-use business_apps_domain::{FieldKind, RecordFilter, validate_record_filter};
+use business_apps_domain::{App, FieldKind, RecordFilter, validate_record_filter};
 use serde_json::Value;
 
 pub fn query_parameters(query: &str, filter: Option<&RecordFilter>) -> String {
@@ -11,6 +11,29 @@ pub fn query_parameters(query: &str, filter: Option<&RecordFilter>) -> String {
         parameters.push_str(&String::from(js_sys::encode_uri_component(&json)));
     }
     parameters
+}
+
+pub fn query_description(app: &App, query: &str, filter: Option<&RecordFilter>) -> String {
+    let mut parts = Vec::new();
+    if !query.is_empty() {
+        parts.push(format!("文字検索「{query}」"));
+    }
+    if let Some(filter) = filter
+        && let Some(field) = app.fields.iter().find(|field| field.key == filter.field)
+    {
+        let condition = match &filter.value {
+            Value::Null => "空欄".into(),
+            Value::Bool(value) => format!("一致：{}", if *value { "はい" } else { "いいえ" }),
+            Value::String(value) => format!("一致：{value}"),
+            value => format!("一致：{value}"),
+        };
+        parts.push(format!("{}（{}）", field.label, condition));
+    }
+    if parts.is_empty() {
+        "すべてのレコード".into()
+    } else {
+        parts.join(" ／ ")
+    }
 }
 
 impl Ui {
@@ -154,6 +177,16 @@ impl Ui {
                     .and_then(serde_json::Number::from_f64)
                     .map(Value::Number)
                     .ok_or("比較する数値を確認してください。")?,
+                FieldKind::Textarea => crate::edited_value(
+                    field.kind,
+                    &raw,
+                    false,
+                    state
+                        .filter
+                        .as_ref()
+                        .filter(|prior| prior.field == key)
+                        .map(|prior| &prior.value),
+                ),
                 _ => Value::String(raw),
             }
         };
@@ -172,26 +205,10 @@ impl Ui {
             );
             return;
         }
-        let mut parts = Vec::new();
-        if !state.query.is_empty() {
-            parts.push(format!("文字検索「{}」", state.query));
-        }
-        if let (Some(app), Some(filter)) = (&state.active, &state.filter)
-            && let Some(field) = app.fields.iter().find(|field| field.key == filter.field)
-        {
-            let condition = match &filter.value {
-                Value::Null => "空欄".into(),
-                Value::Bool(value) => format!("一致：{}", if *value { "はい" } else { "いいえ" }),
-                Value::String(value) => format!("一致：{value}"),
-                value => format!("一致：{value}"),
-            };
-            parts.push(format!("{}（{}）", field.label, condition));
-        }
-        let description = if parts.is_empty() {
-            "すべてのレコード".into()
-        } else {
-            parts.join(" ／ ")
+        let Some(app) = &state.active else {
+            return;
         };
+        let description = query_description(app, &state.query, state.filter.as_ref());
         text(
             "query-summary",
             &format!(

@@ -6,6 +6,8 @@ use std::{collections::HashSet, fmt};
 
 mod filters;
 pub use filters::{RecordFilter, validate_record_filter};
+mod views;
+pub use views::{MAX_VIEWS_PER_APP, SavedView, ViewDefinition, validate_view};
 
 pub type Values = Map<String, Value>;
 

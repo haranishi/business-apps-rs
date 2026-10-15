@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::AppError;
-use rusqlite::Connection;
+use rusqlite::{Connection, TransactionBehavior};
 
 const APPLICATION_ID: i64 = 0x42415253;
 
 pub(super) fn prepare(connection: &mut Connection) -> Result<(), AppError> {
-    let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    let owner: i64 = connection.pragma_query_value(None, "application_id", |row| row.get(0))?;
+    // Inspect and migrate under the same write lock, including concurrent opens.
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let version: i64 = transaction.pragma_query_value(None, "user_version", |row| row.get(0))?;
+    let owner: i64 = transaction.pragma_query_value(None, "application_id", |row| row.get(0))?;
     if version == 0 && owner == 0 {
-        let tables: i64 = connection.query_row(
+        let tables: i64 = transaction.query_row(
             "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'",
             [],
             |row| row.get(0),
@@ -16,7 +18,6 @@ pub(super) fn prepare(connection: &mut Connection) -> Result<(), AppError> {
         if tables != 0 {
             return Err(AppError::Unavailable);
         }
-        let transaction = connection.transaction()?;
         transaction.execute_batch(&format!(
             "
             CREATE TABLE apps (
@@ -33,19 +34,28 @@ pub(super) fn prepare(connection: &mut Connection) -> Result<(), AppError> {
             );
             CREATE INDEX records_by_app_id ON records(app_id, id DESC);
             PRAGMA application_id = {APPLICATION_ID};
-            PRAGMA user_version = 3;
         "
         ))?;
-        transaction.commit()?;
     } else if owner == APPLICATION_ID && matches!(version, 1 | 2) {
-        let transaction = connection.transaction()?;
         transaction.execute_batch(
             "ALTER TABLE apps ADD COLUMN revision INTEGER NOT NULL DEFAULT 1 CHECK(revision > 0);",
         )?;
-        transaction.pragma_update(None, "user_version", 3)?;
-        transaction.commit()?;
-    } else if owner != APPLICATION_ID || version != 3 {
+    } else if owner != APPLICATION_ID || !matches!(version, 3 | 4) {
         return Err(AppError::Unavailable);
     }
+    if version != 4 {
+        transaction.execute_batch(
+            "CREATE TABLE record_views (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id INTEGER NOT NULL REFERENCES apps(id),
+            revision INTEGER NOT NULL CHECK(revision > 0),
+            name TEXT NOT NULL,
+            definition TEXT NOT NULL CHECK(json_valid(definition)),
+            UNIQUE(app_id, name)
+        );",
+        )?;
+        transaction.pragma_update(None, "user_version", 4)?;
+    }
+    transaction.commit()?;
     Ok(())
 }
