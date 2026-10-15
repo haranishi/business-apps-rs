@@ -32,6 +32,8 @@ jobs:
     name: Rust 1.88 minimum
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      RUSTUP_TOOLCHAIN: '1.88.0'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
@@ -41,6 +43,9 @@ jobs:
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
         with:
           tool: wasm-bindgen@0.2.129
+      - run: |
+          rustc --version
+          cargo --version
       - run: cargo xtask build-web
       - run: cargo check --workspace --all-targets --locked
       - run: cargo check -p business-apps-ui --target wasm32-unknown-unknown --locked
