@@ -101,11 +101,16 @@ impl Store {
                 );
                 CREATE INDEX records_by_app_id ON records(app_id, id DESC);
                 PRAGMA application_id = {APPLICATION_ID};
-                PRAGMA user_version = 1;
+                PRAGMA user_version = 2;
             "
             ))?;
             transaction.commit()?;
-        } else if owner != APPLICATION_ID || version != 1 {
+        } else if owner == APPLICATION_ID && version == 1 {
+            // Version 2 allows new field kinds. Rows/tables are unchanged; old binaries must refuse it.
+            let transaction = connection.transaction()?;
+            transaction.pragma_update(None, "user_version", 2)?;
+            transaction.commit()?;
+        } else if owner != APPLICATION_ID || version != 2 {
             return Err(AppError::Unavailable);
         }
         connection.pragma_update(None, "foreign_keys", true)?;

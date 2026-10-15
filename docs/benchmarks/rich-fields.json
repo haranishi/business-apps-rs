@@ -1,0 +1,47 @@
+{
+  "timestamp_utc": "2026-10-15T00:48:20.216121+00:00",
+  "build": "release",
+  "machine": {
+    "os": "Darwin",
+    "architecture": "arm64",
+    "logical_cpus": 14
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "initial_records": 10000,
+  "concurrency": 8,
+  "sqlite": "WAL / FULL synchronous",
+  "database_storage": "project .artifacts directory; SSD-backed when the project resides on SSD",
+  "scope": "end-to-end localhost HTTP, including Python client overhead; text search scans string values",
+  "workloads": {
+    "record_read": {
+      "samples": 500,
+      "p50_ms": 0.35937500069849193,
+      "p95_ms": 1.0449580004205927,
+      "p99_ms": 1.6334169922629371,
+      "requests_per_second": 16737.802324892502
+    },
+    "first_page_30": {
+      "samples": 500,
+      "p50_ms": 0.5049580067861825,
+      "p95_ms": 1.2355000071693212,
+      "p99_ms": 1.58862498938106,
+      "requests_per_second": 13193.36649238372
+    },
+    "text_scan_no_match": {
+      "samples": 500,
+      "p50_ms": 24.785250003333203,
+      "p95_ms": 30.304041007184424,
+      "p99_ms": 50.88183299812954,
+      "requests_per_second": 312.0988231010118
+    },
+    "record_write": {
+      "samples": 500,
+      "p50_ms": 0.6851660000393167,
+      "p95_ms": 2.037458005361259,
+      "p99_ms": 5.349625003873371,
+      "requests_per_second": 7403.541114089485
+    }
+  },
+  "api_source_revision": "cac819484258fb0a6d0f91db8f7c4892c6e81302",
+  "note": "Later commits before this report changed browser assets and test isolation only; API benchmark binary matches this revision."
+}

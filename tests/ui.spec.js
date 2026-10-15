@@ -160,3 +160,91 @@ test("pending save locks cancellation and preserves the accepted draft", async (
   await expect(page.getByRole("cell", { name: "Accepted draft", exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Second", exact: true })).toBeVisible();
 });
+
+
+test("date, select and multiline fields preserve typed values and lock during save", async ({ page, request }, info) => {
+  await page.goto("/");
+  await page.locator("#create-app").click();
+  const builder = page.locator("#app-dialog");
+  await builder.getByLabel("アプリ名", { exact: true }).fill(`Tasks ${info.project.name}`);
+  for (const [label, kind] of [["期限", "date"], ["状況", "select"]]) {
+    await builder.getByRole("button", { name: "＋ 項目を追加", exact: true }).click();
+    await builder.getByLabel("項目名", { exact: true }).last().fill(label);
+    await builder.getByLabel("種類", { exact: true }).last().selectOption(kind);
+    await builder.getByLabel("必須", { exact: true }).last().check();
+  }
+  const options = builder.getByLabel("選択肢（1行に1つ）", { exact: true }).last();
+  await options.fill("未対応\n未対応");
+  await builder.getByRole("button", { name: "アプリを作成", exact: true }).click();
+  await expect(builder.locator("#app-error")).toContainText("重複しないように");
+  await expect(builder.getByLabel("アプリ名", { exact: true })).toHaveValue(`Tasks ${info.project.name}`);
+  await options.fill("未対応\n完了\n<img src=x>");
+  await noHorizontalOverflow(page);
+  await page.screenshot({ path: `.artifacts/rich-builder-${info.project.name}.png`, fullPage: true });
+  await builder.getByRole("button", { name: "アプリを作成", exact: true }).click();
+  await expect(page.locator("#app-title")).toHaveText(`Tasks ${info.project.name}`);
+  await page.locator("#new-record").click();
+  const editor = page.locator("#record-dialog");
+  await editor.getByLabel(/^名称/).fill("Quarterly report");
+  await editor.getByRole("button", { name: "保存", exact: true }).click();
+  expect(await editor.locator("form").evaluate((form) => form.checkValidity())).toBeFalsy();
+  await editor.getByLabel(/^期限/).fill("2024-02-29");
+  await editor.getByLabel(/^状況/).selectOption("未対応");
+  const note = "一行目\n二行目 <script>literal</script>";
+  await editor.getByLabel(/^メモ/).fill(note);
+  await editor.getByLabel(/^メモ/).focus(); await page.keyboard.press("Tab");
+  await expect(editor.getByLabel(/^期限/)).toBeFocused();
+  await noHorizontalOverflow(page);
+  await page.screenshot({ path: `.artifacts/rich-editor-${info.project.name}.png`, fullPage: true });
+  let release, arrived;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const arrival = new Promise((resolve) => { arrived = resolve; });
+  await page.route("**/api/v1/apps/*/records", async (route) => {
+    if (route.request().method() !== "POST") return route.continue();
+    arrived(); await gate; await route.continue();
+  });
+  await editor.getByRole("button", { name: "保存", exact: true }).click(); await arrival;
+  await expect(editor.getByLabel(/^状況/)).toBeDisabled();
+  await expect(editor.getByLabel(/^メモ/)).toBeDisabled();
+  await page.keyboard.press("Escape"); await expect(editor).toBeVisible();
+  release(); await expect(editor).not.toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: /^レコード.*を編集$/ }).click();
+  await expect(editor.getByLabel(/^期限/)).toHaveValue("2024-02-29");
+  await expect(editor.getByLabel(/^状況/)).toHaveValue("未対応");
+  await expect(editor.getByLabel(/^メモ/)).toHaveValue(note);
+  expect(await page.evaluate(() => document.querySelectorAll("#record-dialog script, #record-dialog img").length)).toBe(0);
+  const apps = await (await request.get("/api/v1/apps")).json();
+  const saved = await (await request.get(`/api/v1/apps/${apps[0].id}/records`)).json();
+  expect(saved.records[0].values).toEqual({ field_1: "Quarterly report", field_2: note, field_3: "2024-02-29", field_4: "未対応" });
+});
+
+
+test("full Unicode choice lists and untouched API line endings survive form edits", async ({ page, request }, info) => {
+  await page.goto("/"); await page.locator("#create-app").click();
+  const builder = page.locator("#app-dialog");
+  await builder.getByLabel("アプリ名", { exact: true }).fill(`Unicode ${info.project.name}`);
+  await builder.getByRole("button", { name: "＋ 項目を追加", exact: true }).click();
+  await builder.getByLabel("項目名", { exact: true }).last().fill("分類");
+  await builder.getByLabel("種類", { exact: true }).last().selectOption("select");
+  const choices = Array.from({ length: 50 }, (_, i) => String(i).padStart(2, "0") + "😀".repeat(78));
+  const options = builder.getByLabel("選択肢（1行に1つ）", { exact: true }).last();
+  await options.focus(); await page.keyboard.insertText(choices.join("\n"));
+  await expect(options).toHaveValue(choices.join("\n"));
+  await builder.getByRole("button", { name: "アプリを作成", exact: true }).click();
+  await expect(page.locator("#app-title")).toHaveText(`Unicode ${info.project.name}`);
+  const apps = await (await request.get("/api/v1/apps")).json(); const app = apps[0];
+  expect(app.fields[2].options).toEqual(choices);
+  const note = "line 1\r\n二行目\rthird";
+  const response = await request.post(`/api/v1/apps/${app.id}/records`, { headers, data: { values: { field_1: "Original", field_2: note } } });
+  expect(response.ok()).toBeTruthy(); const record = await response.json();
+  await page.reload(); await page.getByRole("button", { name: `レコード${record.id}を編集`, exact: true }).click();
+  const editor = page.locator("#record-dialog");
+  await editor.getByLabel(/^メモ/).focus();
+  await expect(editor.getByLabel(/^メモ/)).toHaveValue("line 1\n二行目\nthird");
+  await editor.getByLabel(/^名称/).fill("Renamed");
+  await editor.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(editor).not.toBeVisible();
+  const saved = await (await request.get(`/api/v1/apps/${app.id}/records/${record.id}`)).json();
+  expect(saved.values.field_2).toBe(note); expect(saved.values.field_3).toBeNull();
+});

@@ -32,7 +32,8 @@ curl -fsS http://127.0.0.1:8080/api/v1/apps/1/records \
 ```
 
 App keys contain ASCII letters, digits, and underscores and start with a letter.
-Supported `kind` values are `text`, `number`, and `boolean`.
+Supported `kind` values are `text`, `textarea`, `number`, `boolean`, `date`, and `select`.
+See [field rules and saved-data upgrades](fields.md) for date formats, choices, and examples.
 Unknown fields, wrong types, missing required values, and whitespace-only required text are rejected.
 Optional null values are accepted. A required boolean accepts both true and false.
 Schemas have 1–32 fields; labels/names have 1–80 characters; text values have at most 4,000 characters.

@@ -21,6 +21,8 @@ pub struct Field {
     pub kind: FieldKind,
     #[serde(default)]
     pub required: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -29,6 +31,9 @@ pub enum FieldKind {
     Text,
     Number,
     Boolean,
+    Date,
+    Select,
+    Textarea,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -88,6 +93,23 @@ pub fn validate_app(app: &NewApp) -> Result<(), ValidationError> {
         if !valid_label(&field.label) {
             return Err(invalid("Field labels must contain 1–80 characters."));
         }
+        if field.kind == FieldKind::Select {
+            let mut choices = HashSet::new();
+            if !(1..=50).contains(&field.options.len())
+                || field.options.iter().any(|option| {
+                    !valid_label(option)
+                        || option.trim() != option
+                        || option.contains(['\r', '\n'])
+                        || !choices.insert(option)
+                })
+            {
+                return Err(invalid(
+                    "Select fields need 1–50 distinct, trimmed options of 1–80 characters without line breaks.",
+                ));
+            }
+        } else if !field.options.is_empty() {
+            return Err(invalid("Only select fields can have options."));
+        }
     }
     Ok(())
 }
@@ -108,7 +130,7 @@ pub fn validate_values(fields: &[Field], values: &Values) -> Result<(), Validati
         }
         let value = value.expect("missing values handled above");
         match field.kind {
-            FieldKind::Text => {
+            FieldKind::Text | FieldKind::Textarea => {
                 let text = value
                     .as_str()
                     .ok_or_else(|| invalid(format!("{} must be text.", field.label)))?;
@@ -120,6 +142,25 @@ pub fn validate_values(fields: &[Field], values: &Values) -> Result<(), Validati
                 }
                 if field.required && text.trim().is_empty() {
                     return Err(invalid(format!("{} is required.", field.label)));
+                }
+            }
+            FieldKind::Date => {
+                if !value.as_str().is_some_and(valid_date) {
+                    return Err(invalid(format!(
+                        "{} must be a valid YYYY-MM-DD date (0001–9999).",
+                        field.label
+                    )));
+                }
+            }
+            FieldKind::Select => {
+                if !value
+                    .as_str()
+                    .is_some_and(|text| field.options.iter().any(|option| option == text))
+                {
+                    return Err(invalid(format!(
+                        "{} must be one of its configured choices.",
+                        field.label
+                    )));
                 }
             }
             FieldKind::Number => {
@@ -150,6 +191,32 @@ pub fn validate_values(fields: &[Field], values: &Values) -> Result<(), Validati
         }
     }
     Ok(())
+}
+
+fn valid_date(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    if bytes.len() != 10
+        || bytes[4] != b'-'
+        || bytes[7] != b'-'
+        || bytes
+            .iter()
+            .enumerate()
+            .any(|(i, byte)| i != 4 && i != 7 && !byte.is_ascii_digit())
+    {
+        return false;
+    }
+    let year: u32 = text[..4].parse().expect("checked ASCII digits");
+    let month: u32 = text[5..7].parse().expect("checked ASCII digits");
+    let day: u32 = text[8..].parse().expect("checked ASCII digits");
+    let leap = year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400));
+    let days = match month {
+        2 if leap => 29,
+        2 => 28,
+        4 | 6 | 9 | 11 => 30,
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        _ => 0,
+    };
+    year >= 1 && day >= 1 && day <= days
 }
 
 #[cfg(test)]
