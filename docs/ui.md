@@ -1,83 +1,81 @@
 # UI: build an app, then manage its records
 
-## User stories
+The Rust UI in `crates/ui` owns browser layout and interactions; CSS is in `web/style.css`.
+[Build the UI](rust-ui.md) or follow [the design steps](development.md) before changing a flow.
 
-| Person | Task | Reason | Acceptance |
-| --- | --- | --- | --- |
-| Small-team operator | Create an app from named fields | Replace a scattered spreadsheet | Define text/number/checkbox fields without coding |
-| Record editor | Save and find an entry | Keep work up to date | Required input errors preserve the draft |
-| Record editor | Edit an entry already opened | Avoid overwriting another change | Stale revisions show a conflict and offer reload |
-| Contributor | Understand a screen's responsibility | Make a focused improvement | Screen actions map to documented API operations |
+## User stories and acceptance
+
+| Person | Task | Acceptance |
+| --- | --- | --- |
+| Small-team operator | Create a tracker without coding | Choose text, multiline, number, checkbox, date, or single-choice fields |
+| Record editor | Save and find an entry | Required errors preserve the draft; saved values reopen correctly |
+| Record editor | Edit an already-open entry | Stale saves preserve input and offer explicit reload |
+| App owner | Rename, reorder, or add a field | Old values stay intact; additions are optional; conflicting settings keep the draft |
 
 ## Five UX layers
 
 | Layer | Decision |
 | --- | --- |
-| Strategy | Make a first working tracker possible in one short session |
-| Requirements | App creation, typed records, search, editing, deletion, and saved data |
-| Structure | App list → record table → record dialog; app builder opens from the list |
-| Skeleton | App navigation on the left; search and primary action above the table |
-| Surface | Neutral background, teal primary actions, visible labels/focus, restrained motion |
+| Strategy | Make one working tracker possible in a short session |
+| Requirements | App creation, typed records, search, settings, and persisted edits |
+| Structure | App list → table → record dialog; settings reuse the builder |
+| Skeleton | App navigation beside the table; search and actions above it |
+| Surface | Neutral background, teal actions, native controls, visible labels and focus |
 
-The preview is local and stores business records. Public sharing and social buttons are outside this screen's purpose.
-The browser UI currently uses Japanese labels; translating them is a welcome contribution.
+This local preview stores business records; public sharing is outside its purpose.
+The interface uses Japanese labels. English or Japanese contributions can improve their clarity and accessibility.
 
-## Screen flow
-
-```mermaid
-flowchart LR
-  Empty[No apps: create your first app] --> Builder[App builder dialog]
-  Builder --> Table[App record table]
-  Table --> Settings[Form settings: rename, reorder, add optional fields]
-  Settings -->|schema revision matches| Table
-  Settings -->|conflict| SchemaReload[Explicitly reload current schema]
-  SchemaReload --> Settings
-  Table --> New[New record dialog]
-  Table --> Edit[Edit record dialog]
-  New -->|save| Table
-  Edit -->|save or delete| Table
-  Edit -->|revision conflict| Reload[Reload latest entry]
-  Reload --> Edit
-  Table -->|choose another app| Table
-```
-
-## Layout
+## Screens and their responsibilities
 
 ![App navigation, search and record table, with an editing dialog](assets/ui-layout.svg)
 
-Table values keep short strings on one line; long values are shortened visually and remain available in the editor.
-At 390 px, navigation becomes a horizontal app picker and the table scrolls within its container.
-Dialogs keep their own scrolling area; cancel returns focus to the invoking button.
-While a write is pending, inputs, cancel, and Escape are locked to keep later drafts from being lost.
-User text is rendered with `textContent`; it never becomes executable HTML.
+| Screen | Main job |
+| --- | --- |
+| App list and table | Choose an app, search records, open settings, add or edit a record |
+| Builder | Name fields, choose types, and enter select choices one per line |
+| Record editor | Enter native date/select values and plain multiline text; save or cancel |
+| Form settings | Rename/reorder/add optional fields while preserving existing values |
 
-## Current preview
+The following captures use synthetic task data; they illustrate the workflows and are not proof of a particular build passing tests.
 
-These screenshots use synthetic task data.
-
-![Task records in the current desktop preview](assets/preview.png)
+![Task table with app navigation, search, and actions](assets/preview.png)
 
 ![Typed fields in the app builder](assets/builder.png)
 
-![Date, choice, and multiline record inputs](assets/record-editor.png)
+![Date, choice, and multiline inputs in the record editor](assets/record-editor.png)
 
-![Safe form settings with locked existing field types](assets/form-settings.png)
+![Form settings with locked existing field definitions](assets/form-settings.png)
 
-The builder supports date, single-choice, and multiline fields alongside text, number, and checkbox.
-Choosing a select field reveals one option per line; the editor uses native date/select controls and a plain textarea.
-See the [rich-field UX contract](../.agent-harness/contracts/rich-fields.md) for the five design layers and acceptance checks.
+## Operation and recovery
 
-## Interaction checks
+```mermaid
+flowchart LR
+  Empty[No apps] --> Builder[Create app]
+  Builder --> Table[Record table]
+  Table --> Settings[Form settings]
+  Settings -->|save current revision| Table
+  Settings -->|conflict, keep draft| SchemaReload[Explicit schema reload]
+  SchemaReload --> Settings
+  Table --> New[Add record]
+  Table --> Edit[Edit record]
+  New -->|save| Table
+  Edit -->|save or confirmed delete| Table
+  Edit -->|conflict, keep draft| Reload[Explicit record reload]
+  Reload --> Edit
+  Table -->|choose app or search| Table
+```
 
-- Start from an empty database, create an app, and save one record.
-- Fail a required value, keep the draft, correct it, and save.
-- Search, edit, cancel, and delete with explicit confirmation.
-- Open two editors and verify that a stale save cannot replace newer data.
-- Use only the keyboard, then inspect 390/768/1440 px widths.
+## Interaction constraints
 
-Browser regression tests live in `tests/ui.spec.js`; API/storage cases live in `crates/server/tests`.
+- At 390 px, app navigation adapts above the table; the table scrolls within its container.
+- Short table strings stay on one line; long values are visually shortened and remain available in the editor.
+- Dialogs scroll internally. Cancel/Escape returns focus to the invoking button.
+- Pending writes lock every dialog control, cancel, and Escape; the save action shows its pending state.
+- Settings lock existing keys, types, required flags, choices, and removal. New fields are optional.
+- Up/down actions reorder without dragging and return focus to the moved field.
+- Stale settings/records preserve drafts until explicit reload; reload explains that input will be replaced.
+- Render user content as plain text. Native date formatting follows the browser locale; textarea keeps line breaks.
+- Late responses must not replace a newer app selection or editing draft; old-form edits must preserve unknown saved fields.
 
-Form settings reuse the builder. Existing field types, required flags, keys, and choices stay locked.
-Up/down buttons reorder fields without dragging; new fields are optional, so saved records need no rewrite.
-A stale settings save keeps its draft until the user explicitly reloads.
-See the [schema-editing UX contract](../.agent-harness/contracts/schema-editing.md).
+[Rich-field contracts](../.agent-harness/contracts/rich-fields.md) and [schema-editing contracts](../.agent-harness/contracts/schema-editing.md) record the feature decisions.
+[Testing](testing.md) covers create → save → search → edit → reopen, validation, conflicts, focus, pending locks, and three widths.

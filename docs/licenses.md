@@ -15,7 +15,8 @@ The working name is descriptive and can be revisited before a branded release.
 
 ## Dependencies and distributions
 
-- `Cargo.lock` records the reviewed dependency graph.
+- `Cargo.lock` records the reviewed dependency graph, including wasm32 UI dependencies.
+- wasm-bindgen, wasm-bindgen-futures, js-sys, and web-sys are MIT OR Apache-2.0; keep their attribution when distributing compiled assets.
 - `deny.toml` permits listed open-source licenses and blocks unknown/unlicensed packages.
 - Run `cargo deny check licenses bans sources` before introducing a dependency.
 - For a binary distribution, collect dependency license texts, copyright/NOTICE files, and an SBOM for that exact build.
