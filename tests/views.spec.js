@@ -302,6 +302,26 @@ test("changing columns preserves an unchanged API-created name with internal CR/
   expect((await catalog(request, app))[0].definition.name).toBe("Intentional rename");
 });
 
+test("manual catalog retry supersedes startup loading without invalidating a later view editor", async ({ page, request }, info) => {
+  const { app } = await seed(request, `Startup catalog ${info.project.name}`, [{ name: "Keep" }]);
+  let calls = 0; const pending = gate();
+  await page.route(`**/api/v1/apps/${app.id}/records?*`, async (route) => {
+    if (++calls !== 1) return route.continue();
+    pending.arrive(); await pending.wait; await route.continue();
+  });
+  await page.goto("/"); await pending.arrival;
+  await page.locator("#reload-views").click(); await expect(picker(page)).toBeEnabled();
+  await page.locator("#search").fill("Keep"); await page.getByRole("button", { name: "検索", exact: true }).click();
+  await expect(page.locator("#save-view")).toBeEnabled();
+  await page.locator("#save-view").click(); await page.getByLabel("一覧名", { exact: true }).fill("Later editor");
+  const finished = page.waitForResponse((response) => response.url().includes(`/apps/${app.id}/records?`));
+  pending.release(); await (await finished).finished(); await page.waitForLoadState("networkidle");
+  const saved = page.waitForResponse((response) => response.url().endsWith(`/apps/${app.id}/views`) && response.request().method() === "POST");
+  await page.locator("#confirm-view").click(); expect((await saved).status()).toBe(201);
+  await expect(dialog(page)).not.toBeVisible();
+  expect((await catalog(request, app))[0].definition.query).toBe("Keep");
+});
+
 test("fast view selection discards earlier record responses", async ({ page, request }, info) => {
   const { app } = await seed(request, `Fast views ${info.project.name}`, [{ name: "Pending", done: false }, { name: "Finished", done: true }]);
   const a = await createView(request, app, { name: "Pending", columns: ["name"], filter: { field: "done", value: false } });
