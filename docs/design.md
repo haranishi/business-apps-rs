@@ -48,7 +48,8 @@ erDiagram
 
 Schema creation and record validation occur in Rust; SQLite enforces the app foreign key.
 Updates and deletes compare the submitted revision inside the database operation.
-The schema is immutable in this milestone to avoid unsafe changes to saved values.
+App schemas use their own optimistic revision; only label/name/order changes and optional additions are allowed.
+[Schema-editing rules](schema-editing.md) preserve every existing key, type, required flag, and option list.
 
 ## Adding a feature
 

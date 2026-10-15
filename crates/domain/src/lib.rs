@@ -39,6 +39,7 @@ pub enum FieldKind {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct App {
     pub id: i64,
+    pub revision: i64,
     pub name: String,
     pub fields: Vec<Field>,
 }
@@ -110,6 +111,33 @@ pub fn validate_app(app: &NewApp) -> Result<(), ValidationError> {
         } else if !field.options.is_empty() {
             return Err(invalid("Only select fields can have options."));
         }
+    }
+    Ok(())
+}
+
+pub fn validate_app_update(current: &App, input: &NewApp) -> Result<(), ValidationError> {
+    validate_app(input)?;
+    for prior in &current.fields {
+        let Some(field) = input.fields.iter().find(|field| field.key == prior.key) else {
+            return Err(invalid("Existing field keys cannot be removed or renamed."));
+        };
+        if field.kind != prior.kind
+            || field.required != prior.required
+            || field.options != prior.options
+        {
+            return Err(invalid(
+                "Existing field types, required flags, and options cannot change.",
+            ));
+        }
+    }
+    if input
+        .fields
+        .iter()
+        .any(|field| field.required && !current.fields.iter().any(|prior| prior.key == field.key))
+    {
+        return Err(invalid(
+            "New fields must be optional to preserve existing records.",
+        ));
     }
     Ok(())
 }

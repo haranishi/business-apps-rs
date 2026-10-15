@@ -14,6 +14,7 @@ For HTTP changes read [API v1](../../../docs/api.md); for screens read [UI stori
 - Submit database work through `Store::call`; the connection stays on its dedicated worker.
 - Scope all record SQL to `app_id` and compare revisions during update/delete.
 - Schema changes require a migration plus an old-database reopen test.
+- Compare app revisions on schema updates; keep existing keys/types/required/options and allow only optional additions.
 - Keep the local preview's loopback, Host, Origin, and mutation-header protections.
 - Render records and field labels as text; retain drafts when a save fails.
 

@@ -25,7 +25,7 @@
         <div class="templates"><button id="customer-template"><strong>顧客管理</strong><span>顧客名・連絡先・対応状況</span></button><button id="inventory-template"><strong>在庫管理</strong><span>商品名・数量・メモ</span></button></div>
       </section>
       <section id="app-workspace" hidden>
-        <div class="page-heading"><div><p class="eyebrow">WORKSPACE</p><h1 id="app-title"></h1><p id="record-count" class="muted"></p></div><button id="new-record" class="primary">＋ レコードを追加</button></div>
+        <div class="page-heading"><div><p class="eyebrow">WORKSPACE</p><h1 id="app-title"></h1><p id="record-count" class="muted"></p></div><div class="workspace-actions"><button id="edit-app">フォーム設定</button><button id="new-record" class="primary">＋ レコードを追加</button></div></div>
         <form id="search-form" class="search"><label for="search">レコードを検索</label><div><input id="search" type="search" maxlength="128" placeholder="文字を入力して検索"><button type="submit">検索</button><button id="clear-search" type="button">クリア</button></div></form>
         <p id="table-hint" class="muted" hidden>表を横にスクロールして、項目や編集ボタンを表示できます。</p><div class="table-scroll"><table><caption class="sr-only" id="table-caption">レコード一覧</caption><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
         <div class="pagination"><button id="previous-page">前のページ</button><span id="page-number"></span><button id="next-page">次のページ</button></div>
@@ -35,8 +35,9 @@
   <dialog id="app-dialog" aria-labelledby="app-dialog-title">
     <form id="app-form"><div class="dialog-heading"><h2 id="app-dialog-title">アプリを作る</h2><button type="button" class="close-app" aria-label="アプリ作成を閉じる">×</button></div>
       <label for="app-name">アプリ名</label><input id="app-name" required maxlength="80" placeholder="例：顧客管理">
+      <p id="app-settings-hint" class="muted" hidden>追加する項目は任意入力です。既存項目の種類・必須設定・選択肢は変更できません。</p>
       <div class="section-heading"><h3>項目</h3><span class="muted">最大32項目</span></div><div id="field-builder"></div><button type="button" id="add-field">＋ 項目を追加</button>
-      <p id="app-error" class="error" role="alert"></p><div class="dialog-actions"><button type="button" class="close-app">キャンセル</button><button id="save-app" type="submit" class="primary">アプリを作成</button></div>
+      <p id="app-error" class="error" role="alert"></p><button id="reload-app" type="button" hidden>最新版を読み込む（入力内容を置き換えます）</button><div class="dialog-actions"><button type="button" class="close-app">キャンセル</button><button id="save-app" type="submit" class="primary">アプリを作成</button></div>
     </form>
   </dialog>
   <dialog id="record-dialog" aria-labelledby="record-dialog-title">

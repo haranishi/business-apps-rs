@@ -28,6 +28,10 @@ The browser UI currently uses Japanese labels; translating them is a welcome con
 flowchart LR
   Empty[No apps: create your first app] --> Builder[App builder dialog]
   Builder --> Table[App record table]
+  Table --> Settings[Form settings: rename, reorder, add optional fields]
+  Settings -->|schema revision matches| Table
+  Settings -->|conflict| SchemaReload[Explicitly reload current schema]
+  SchemaReload --> Settings
   Table --> New[New record dialog]
   Table --> Edit[Edit record dialog]
   New -->|save| Table
@@ -49,11 +53,15 @@ User text is rendered with `textContent`; it never becomes executable HTML.
 
 ## Current preview
 
-These screenshots use synthetic customer/contact data.
+These screenshots use synthetic task data.
 
-![Customer records in the current desktop preview](assets/preview.png)
+![Task records in the current desktop preview](assets/preview.png)
 
 ![Typed fields in the app builder](assets/builder.png)
+
+![Date, choice, and multiline record inputs](assets/record-editor.png)
+
+![Safe form settings with locked existing field types](assets/form-settings.png)
 
 The builder supports date, single-choice, and multiline fields alongside text, number, and checkbox.
 Choosing a select field reveals one option per line; the editor uses native date/select controls and a plain textarea.
@@ -68,3 +76,8 @@ See the [rich-field UX contract](../.agent-harness/contracts/rich-fields.md) for
 - Use only the keyboard, then inspect 390/768/1440 px widths.
 
 Browser regression tests live in `tests/ui.spec.js`; API/storage cases live in `crates/server/tests`.
+
+Form settings reuse the builder. Existing field types, required flags, keys, and choices stay locked.
+Up/down buttons reorder fields without dragging; new fields are optional, so saved records need no rewrite.
+A stale settings save keeps its draft until the user explicitly reloads.
+See the [schema-editing UX contract](../.agent-harness/contracts/schema-editing.md).

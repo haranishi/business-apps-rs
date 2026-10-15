@@ -2,6 +2,8 @@
 const $ = (id) => document.getElementById(id);
 const state = { apps: [], active: null, records: [], next: null, cursors: [null], page: 0, request: 0, loading: false };
 let editingRecord = null;
+let editingApp = null;
+let appFormRequest = 0;
 let fieldCounter = 0;
 let recordBusy = false;
 let appBusy = false;
@@ -15,7 +17,7 @@ function setRecordBusy(busy) {
 function setAppBusy(busy) {
   appBusy = busy;
   for (const input of $("app-form").querySelectorAll("input, select, textarea, button")) input.disabled = busy;
-  $("save-app").textContent = busy ? "作成中…" : "アプリを作成";
+  $("save-app").textContent = busy ? "保存中…" : editingApp ? "変更を保存" : "アプリを作成";
   if (!busy) refreshBuilder();
 }
 
@@ -58,6 +60,7 @@ function renderApps() {
 }
 
 async function selectApp(app) {
+  ++appFormRequest;
   state.active = app;
   state.records = [];
   state.next = null;
@@ -127,10 +130,12 @@ async function loadRecords() {
   }
 }
 
-function addField(label = "", kind = "text", required = false, options = []) {
+function addField(label = "", kind = "text", required = false, options = [], storedKey = null) {
   if ($("field-builder").children.length >= 32) return;
-  const key = `field_${++fieldCounter}`;
-  const row = element("div", undefined, "field-row"); row.dataset.key = key;
+  const keys = new Set([...Array.from($("field-builder").children, (row) => row.dataset.key), ...(editingApp?.fields.map((field) => field.key) || [])]);
+  let key = storedKey;
+  if (!key) { do { key = `field_${++fieldCounter}`; } while (keys.has(key)); }
+  const row = element("div", undefined, "field-row"); row.dataset.key = key; row.dataset.existing = String(!!storedKey);
   const nameLabel = element("label", "項目名"); const name = element("input");
   name.required = true; name.maxLength = 80; name.value = label; name.placeholder = "例：顧客名"; name.className = "field-label"; nameLabel.append(name);
   const kindBlock = element("div"); const kindLabel = element("label", "種類"); const select = element("select"); select.className = "field-kind";
@@ -143,34 +148,57 @@ function addField(label = "", kind = "text", required = false, options = []) {
   checkbox.type = "checkbox"; checkbox.checked = required; checkbox.className = "field-required";
   requiredLabel.append(checkbox, element("span", "必須"));
   const remove = element("button", "×", "remove"); remove.type = "button"; remove.setAttribute("aria-label", "項目を削除");
-  remove.addEventListener("click", () => { row.remove(); refreshBuilder(); });
+  remove.addEventListener("click", () => { const next = row.nextElementSibling || row.previousElementSibling; row.remove(); refreshBuilder(); next?.querySelector(".field-label").focus(); });
+  const actions = element("div", undefined, "field-actions");
+  const up = element("button", "↑ 上へ", "move-up"); up.type = "button"; up.setAttribute("aria-label", "項目を上へ移動");
+  const down = element("button", "↓ 下へ", "move-down"); down.type = "button"; down.setAttribute("aria-label", "項目を下へ移動");
+  up.addEventListener("click", () => { row.previousElementSibling?.before(row); refreshBuilder(); name.focus(); });
+  down.addEventListener("click", () => { row.nextElementSibling?.after(row); refreshBuilder(); name.focus(); });
+  actions.append(up, down, remove);
   const choicesLabel = element("label", "選択肢（1行に1つ）", "field-options-label");
   const choices = element("textarea"); choices.className = "field-options"; choices.rows = 3; choices.maxLength = 8049;
   choices.value = options.join("\n"); choices.placeholder = "未対応\n対応中\n完了"; choicesLabel.append(choices);
   const updateChoices = () => { choicesLabel.hidden = select.value !== "select"; choices.required = !choicesLabel.hidden; choices.disabled = choicesLabel.hidden; };
   select.addEventListener("change", updateChoices); updateChoices();
-  row.append(nameLabel, kindBlock, requiredLabel, remove, choicesLabel); $("field-builder").append(row); refreshBuilder();
+  row.append(nameLabel, kindBlock, requiredLabel, choicesLabel, actions); $("field-builder").append(row); refreshBuilder();
 }
 
 function refreshBuilder() {
   const count = $("field-builder").children.length;
   $("add-field").disabled = count >= 32;
-  for (const button of $("field-builder").querySelectorAll(".remove")) button.disabled = count <= 1;
-  for (const row of $("field-builder").children) row.querySelector(".field-options").disabled = row.querySelector(".field-kind").value !== "select";
+  for (const [index, row] of Array.from($("field-builder").children).entries()) {
+    const existing = row.dataset.existing === "true";
+    row.querySelector(".field-kind").disabled = existing;
+    row.querySelector(".field-required").disabled = !!editingApp;
+    if (editingApp && !existing) row.querySelector(".field-required").checked = false;
+    row.querySelector(".field-options").readOnly = existing;
+    row.querySelector(".field-options").disabled = row.querySelector(".field-kind").value !== "select";
+    row.querySelector(".remove").disabled = count <= 1 || existing;
+    row.querySelector(".move-up").disabled = index === 0;
+    row.querySelector(".move-down").disabled = index === count - 1;
+  }
 }
 
-function openApp(template) {
+function openApp(template, app = null) {
   if (appBusy) return;
+  ++appFormRequest;
+  editingApp = app;
   $("app-form").reset(); $("app-error").textContent = ""; $("field-builder").replaceChildren(); fieldCounter = 0;
   $("save-app").disabled = false;
-  $("app-name").value = template?.name || "";
+  $("app-name").value = app?.name || template?.name || "";
+  $("app-dialog-title").textContent = app ? "フォーム設定" : "アプリを作る";
+  $("app-dialog").querySelector(".close-app[aria-label]").setAttribute("aria-label", app ? "フォーム設定を閉じる" : "アプリ作成を閉じる");
+  $("app-settings-hint").hidden = !app; $("reload-app").hidden = true;
+  $("save-app").textContent = app ? "変更を保存" : "アプリを作成";
   const fields = template?.fields || [["名称", "text", true], ["メモ", "textarea", false]];
-  for (const field of fields) addField(...field);
-  $("app-dialog").showModal(); $("app-name").focus();
+  if (app) for (const field of app.fields) addField(field.label, field.kind, field.required, field.options || [], field.key);
+  else for (const field of fields) addField(...field);
+  if (!$("app-dialog").open) $("app-dialog").showModal(); $("app-name").focus();
 }
 
 function openRecord(record = null) {
   if (recordBusy) return;
+  ++appFormRequest;
   editingRecord = record;
   $("record-form").reset(); $("record-error").textContent = "";
   $("record-dialog-title").textContent = record ? "レコードを編集" : "レコードを追加";
@@ -205,7 +233,7 @@ function openRecord(record = null) {
 }
 
 function recordValues() {
-  const values = Object.create(null);
+  const values = Object.assign(Object.create(null), editingRecord?.values || {});
   for (const input of $("record-fields").querySelectorAll("input, select, textarea")) {
     const original = editingRecord && Object.hasOwn(editingRecord.values, input.dataset.key) ? editingRecord.values[input.dataset.key] : null;
     if (input.dataset.kind === "textarea" && typeof original === "string" && input.value === original.replace(/\r\n?/g, "\n")) {
@@ -242,14 +270,35 @@ $("app-form").addEventListener("submit", async (event) => {
   setAppBusy(true); $("app-error").textContent = "";
   const fields = Array.from($("field-builder").children, (row) => {
     const kind = row.querySelector(".field-kind").value;
+    const prior = editingApp?.fields.find((field) => field.key === row.dataset.key);
     return { key: row.dataset.key, label: row.querySelector(".field-label").value.trim(), kind, required: row.querySelector(".field-required").checked,
-      ...(kind === "select" ? { options: row.querySelector(".field-options").value.split("\n").map((text) => text.trim()).filter(Boolean) } : {}) };
+      ...(kind === "select" ? { options: prior ? prior.options : row.querySelector(".field-options").value.split("\n").map((text) => text.trim()).filter(Boolean) } : {}) };
   });
   try {
-    const app = await api("/apps", "POST", { name: $("app-name").value.trim(), fields });
-    state.apps.unshift(app); $("app-dialog").close();
-    await selectApp(app); status("アプリを作成しました。レコードを追加できます。"); $("new-record").focus();
-  } catch (error) { $("app-error").textContent = error.message; }
+    const updating = !!editingApp;
+    const input = { name: $("app-name").value.trim(), fields, ...(updating ? { revision: editingApp.revision } : {}) };
+    const app = await api(updating ? `/apps/${editingApp.id}` : "/apps", updating ? "PUT" : "POST", input);
+    if (updating) state.apps = state.apps.map((prior) => prior.id === app.id ? app : prior);
+    else state.apps.unshift(app);
+    $("app-dialog").close();
+    await selectApp(app); status(updating ? "フォームを更新しました。既存のレコードは保持されています。" : "アプリを作成しました。レコードを追加できます。");
+    $(updating ? "edit-app" : "new-record").focus();
+  } catch (error) { $("app-error").textContent = error.message; $("reload-app").hidden = error.status !== 409; }
+  finally { setAppBusy(false); }
+});
+
+$("edit-app").addEventListener("click", async () => {
+  if (appBusy) return;
+  const id = state.active.id; const request = ++appFormRequest; $("edit-app").disabled = true;
+  try { const app = await api(`/apps/${id}`); if (request === appFormRequest && state.active?.id === id && !$("app-dialog").open && !$("record-dialog").open) { $("edit-app").disabled = false; $("edit-app").focus(); openApp(null, app); } }
+  catch (error) { status(error.message); }
+  finally { $("edit-app").disabled = false; }
+});
+$("reload-app").addEventListener("click", async () => {
+  if (appBusy || !editingApp) return;
+  setAppBusy(true);
+  try { const app = await api(`/apps/${editingApp.id}`); setAppBusy(false); openApp(null, app); }
+  catch (error) { $("app-error").textContent = error.message; }
   finally { setAppBusy(false); }
 });
 
