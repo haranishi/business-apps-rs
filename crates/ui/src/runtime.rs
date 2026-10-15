@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{dom::*, layout};
-use business_apps_domain::{App, Record};
+use business_apps_domain::{App, Record, RecordFilter};
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
 use std::{cell::RefCell, rc::Rc};
@@ -19,7 +19,8 @@ pub struct State {
     pub request: u64,
     pub loading: bool,
     pub query: String,
-    pub export_ready: bool,
+    pub filter: Option<RecordFilter>,
+    pub records_ready: bool,
     pub exporting: bool,
     pub editing_record: Option<Record>,
     pub editing_app: Option<App>,
@@ -129,6 +130,13 @@ impl Ui {
                     return;
                 }
                 if kind == "change" {
+                    if target.id() == "filter-field" {
+                        if let Err(error) = ui.render_filter_value() {
+                            ui.unexpected(error);
+                        }
+                    } else if target.id() == "filter-mode" {
+                        ui.update_filter_mode();
+                    }
                     if target.class_list_contains("field-kind")
                         && let Some(row) = target.closest(".field-row").ok().flatten()
                     {
@@ -224,7 +232,18 @@ impl Ui {
             "app-form" => self.save_app().await,
             "record-form" => self.save_record().await,
             "search-form" => {
-                self.state.borrow_mut().query = value(&id("search")).trim().to_owned();
+                let filter = match self.read_filter() {
+                    Ok(filter) => filter,
+                    Err(message) => {
+                        text("status", message);
+                        return Ok(());
+                    }
+                };
+                {
+                    let mut state = self.state.borrow_mut();
+                    state.query = value(&id("search")).trim().to_owned();
+                    state.filter = filter;
+                }
                 self.reset_paging();
                 self.load_records().await.map(|_| ())
             }
@@ -253,6 +272,14 @@ impl Ui {
             "clear-search" => {
                 set_value(&id("search"), "");
                 self.state.borrow_mut().query.clear();
+                self.state.borrow_mut().filter = None;
+                self.reset_filter_controls()?;
+                self.reset_paging();
+                self.load_records().await.map(|_| ())
+            }
+            "clear-filter" => {
+                self.state.borrow_mut().filter = None;
+                self.reset_filter_controls()?;
                 self.reset_paging();
                 self.load_records().await.map(|_| ())
             }
@@ -308,6 +335,7 @@ impl Ui {
         let mut state = self.state.borrow_mut();
         state.cursors = vec![None];
         state.page = 0;
+        state.next = None;
     }
 
     pub fn update_table_hint(&self) {

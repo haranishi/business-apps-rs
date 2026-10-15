@@ -61,3 +61,10 @@ textarea { resize: vertical; min-height: 88px; max-width: 100%; }
 /* Applied-search exports keep their scope and progress visible at every width. */
 .export-tools { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; margin: 1rem 0 .25rem; }
 .export-tools .muted { flex: 1 1 15rem; }
+.filter-panel { margin-top: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: white; }
+.filter-panel summary { cursor: pointer; font-weight: 600; }
+.filter-grid { display: grid; grid-template-columns: minmax(0, 1fr) 110px minmax(0, 1fr); gap: 12px; margin: 16px 0 10px; }
+.filter-grid > div { min-width: 0; }
+.filter-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+#query-summary { overflow-wrap: anywhere; }
+@media (max-width: 900px) { .filter-grid { grid-template-columns: minmax(0, 1fr); } }

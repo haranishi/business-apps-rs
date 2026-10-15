@@ -18,7 +18,7 @@ The screenshot uses synthetic data. See [screen diagrams and the editor](docs/ui
 | Area | Local preview |
 | --- | --- |
 | Fields | Text, multiline text, number, checkbox, date, and single choice |
-| Records | Create, read, search, edit, delete; SQLite persistence and revision conflict checks |
+| Records | Create/read/edit/delete, text search and [typed field filters](docs/record-filters.md); durable SQLite and revision checks |
 | Export | [Spreadsheet-oriented CSV](docs/csv.md) of all matching pages, with formula protection and explicit size limits |
 | Form settings | Rename app/labels, reorder fields, add optional fields; existing types/required flags/choices stay fixed |
 | Planned | Team login, role-based permissions, audit history, views, import, workflows, packaged deployment |

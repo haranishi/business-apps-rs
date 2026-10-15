@@ -1,0 +1,37 @@
+name: Record API baseline
+on:
+  pull_request:
+    paths:
+      - 'crates/server/**'
+      - 'crates/domain/**'
+      - 'scripts/benchmark.py'
+      - '.github/workflows/performance.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: record-baseline-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  benchmark:
+    name: Record API baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
+        with:
+          tool: wasm-bindgen@0.2.129
+      - run: cargo xtask build
+      - run: python3 scripts/benchmark.py --records 10000 --requests 200 --concurrency 8 --output .artifacts/record-api-baseline.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: ${{ !cancelled() }}
+        with:
+          name: record-api-baseline
+          path: .artifacts/record-api-baseline.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7

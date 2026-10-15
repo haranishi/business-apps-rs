@@ -188,6 +188,64 @@ fn workspace(main: &web_sys::Element) -> Result {
         &[("id", "clear-search"), ("type", "button")],
         Some("クリア"),
     )?;
+    let filters = child(&search, "details", &[("class", "filter-panel")], None)?;
+    child(&filters, "summary", &[], Some("項目の条件で絞り込む"))?;
+    let grid = child(&filters, "div", &[("class", "filter-grid")], None)?;
+    let field = child(&grid, "div", &[], None)?;
+    child(
+        &field,
+        "label",
+        &[("for", "filter-field")],
+        Some("絞り込む項目"),
+    )?;
+    child(&field, "select", &[("id", "filter-field")], None)?;
+    let mode = child(&grid, "div", &[], None)?;
+    child(&mode, "label", &[("for", "filter-mode")], Some("条件"))?;
+    let mode = child(
+        &mode,
+        "select",
+        &[("id", "filter-mode"), ("disabled", "")],
+        None,
+    )?;
+    child(&mode, "option", &[("value", "equals")], Some("一致する"))?;
+    child(&mode, "option", &[("value", "empty")], Some("空欄"))?;
+    let comparison = child(&grid, "div", &[], None)?;
+    child(
+        &comparison,
+        "label",
+        &[("for", "filter-value")],
+        Some("比較する値"),
+    )?;
+    child(&comparison, "div", &[("id", "filter-value-host")], None)?;
+    child(
+        &filters,
+        "p",
+        &[("class", "muted")],
+        Some("文字列は完全一致・128文字まで。文字検索と組み合わせて適用できます。"),
+    )?;
+    let actions = child(&filters, "div", &[("class", "filter-actions")], None)?;
+    child(
+        &actions,
+        "button",
+        &[("type", "submit")],
+        Some("条件を適用"),
+    )?;
+    child(
+        &actions,
+        "button",
+        &[("id", "clear-filter"), ("type", "button")],
+        Some("条件を解除"),
+    )?;
+    child(
+        &workspace,
+        "p",
+        &[
+            ("id", "query-summary"),
+            ("class", "muted"),
+            ("role", "status"),
+        ],
+        None,
+    )?;
     let export = child(&workspace, "div", &[("class", "export-tools")], None)?;
     child(
         &export,
