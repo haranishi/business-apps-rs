@@ -8,9 +8,12 @@ use business_apps_server::{router, store::Store};
 use serde_json::{Value, json};
 use std::{
     path::PathBuf,
+    sync::atomic::{AtomicU64, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 use tower::ServiceExt;
+
+static NEXT_DATABASE: AtomicU64 = AtomicU64::new(0);
 
 struct Database(PathBuf);
 impl Database {
@@ -19,7 +22,11 @@ impl Database {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        let name = format!("business-apps-rich-{}-{stamp}.sqlite", std::process::id());
+        let sequence = NEXT_DATABASE.fetch_add(1, Ordering::Relaxed);
+        let name = format!(
+            "business-apps-rich-{}-{stamp}-{sequence}.sqlite",
+            std::process::id()
+        );
         Self(std::env::temp_dir().join(name))
     }
 }
