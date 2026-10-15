@@ -28,6 +28,10 @@ The browser UI currently uses Japanese labels; translating them is a welcome con
 flowchart LR
   Empty[No apps: create your first app] --> Builder[App builder dialog]
   Builder --> Table[App record table]
+  Table --> Settings[Form settings: rename, reorder, add optional fields]
+  Settings -->|schema revision matches| Table
+  Settings -->|conflict| SchemaReload[Explicitly reload current schema]
+  SchemaReload --> Settings
   Table --> New[New record dialog]
   Table --> Edit[Edit record dialog]
   New -->|save| Table
@@ -68,3 +72,8 @@ See the [rich-field UX contract](../.agent-harness/contracts/rich-fields.md) for
 - Use only the keyboard, then inspect 390/768/1440 px widths.
 
 Browser regression tests live in `tests/ui.spec.js`; API/storage cases live in `crates/server/tests`.
+
+Form settings reuse the builder. Existing field types, required flags, keys, and choices stay locked.
+Up/down buttons reorder fields without dragging; new fields are optional, so saved records need no rewrite.
+A stale settings save keeps its draft until the user explicitly reloads.
+See the [schema-editing UX contract](../.agent-harness/contracts/schema-editing.md).

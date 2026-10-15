@@ -5,7 +5,7 @@
 Create a business app from typed fields, then manage its records in a browser.
 An independent Rust OSS project for local customer lists, inventory, and task trackers.
 
-**Status: local development preview.** App schemas are immutable; team authentication, permissions, and workflows are planned.
+**Status: local development preview.** Forms support safe optional additions and reordering; team authentication, permissions, and workflows are planned.
 This is an original implementation, independent of Cybozu and kintone. It does not implement kintone API compatibility.
 
 ## Try your first app
@@ -20,6 +20,7 @@ cargo run -p business-apps-server
 
 Open `http://127.0.0.1:8080`. Choose an app name and text, multiline, number, checkbox, date, or select fields, then add a record.
 Search your entries, edit them, or reopen the app to read the saved data.
+Use Form settings to rename labels, reorder fields, or add optional fields while keeping existing records.
 The preview only accepts loopback listeners and has no user/permission model; use synthetic data.
 SQLite data lives in `.data/business-apps.sqlite`, outside Git.
 

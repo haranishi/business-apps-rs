@@ -40,6 +40,8 @@ A successful atomic update increments the app revision. Concurrent writers have 
 A rejected or stale update does not change the app or its records.
 The browser keeps a conflicting draft; **最新版を読み込む** explicitly replaces it with the current schema.
 Save-in-flight locks inputs, movement, cancel, and Escape until the request finishes.
+A delayed settings load cannot replace a newer dialog or an app selection.
+Older tabs keep their displayed form until reloaded; edits preserve every loaded record value, including added fields absent from that form.
 Saving settings returns to the first record page with the new schema and clears the previous search.
 
 ## SQLite format 3

@@ -13,7 +13,7 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Rust tests exercise app isolation, type errors, stale updates/deletes, concurrent edits, pagination, literal search, body limits, date/choice validation, version-1 upgrades, and database reopening.
+Rust tests exercise app isolation, type errors, stale updates/deletes, concurrent edits, pagination, literal search, body limits, date/choice validation, format-1/2 upgrades, schema-edit restrictions, concurrent schema saves, and database reopening.
 Browser tests use synthetic data, an isolated temporary database, and a separate loopback port.
 Playwright starts and stops its own server; it does not attach to your daily workspace database.
 Three projects cover 390, 768, and 1440 px widths.

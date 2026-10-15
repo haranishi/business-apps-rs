@@ -248,3 +248,124 @@ test("full Unicode choice lists and untouched API line endings survive form edit
   const saved = await (await request.get(`/api/v1/apps/${app.id}/records/${record.id}`)).json();
   expect(saved.values.field_2).toBe(note); expect(saved.values.field_3).toBeNull();
 });
+
+
+test("form settings rename, reorder and add optional fields without changing saved records", async ({ page, request }, info) => {
+  const created = await request.post("/api/v1/apps", { headers, data: { name: `Settings ${info.project.name}`, fields: [
+    { key: "field_1", label: "名称", kind: "text", required: true },
+    { key: "state", label: "状況", kind: "select", options: ["\uFEFFOpen", "Done"] }
+  ] } });
+  expect(created.ok()).toBeTruthy(); const app = await created.json();
+  const response = await request.post(`/api/v1/apps/${app.id}/records`, { headers, data: { values: { field_1: "Original", state: "\uFEFFOpen" } } });
+  const original = await response.json();
+  await page.goto("/"); await page.getByRole("button", { name: "フォーム設定", exact: true }).click();
+  const builder = page.getByRole("dialog", { name: "フォーム設定", exact: true });
+  await expect(builder.getByLabel("種類", { exact: true }).first()).toBeDisabled();
+  await expect(builder.getByLabel("必須", { exact: true }).first()).toBeDisabled();
+  await expect(builder.getByRole("button", { name: "項目を削除", exact: true }).first()).toBeDisabled();
+  await expect(builder.locator(".field-options").nth(1)).toHaveAttribute("readonly", "");
+  await builder.getByLabel("アプリ名", { exact: true }).fill(`Renamed ${info.project.name}`);
+  await builder.getByLabel("項目名", { exact: true }).first().fill("件名");
+  await builder.getByRole("button", { name: "＋ 項目を追加", exact: true }).click();
+  await builder.getByLabel("項目名", { exact: true }).last().fill("期限");
+  await builder.getByLabel("種類", { exact: true }).last().selectOption("date");
+  await expect(builder.getByLabel("必須", { exact: true }).last()).toBeDisabled();
+  await expect(builder.getByLabel("必須", { exact: true }).last()).not.toBeChecked();
+  await builder.getByRole("button", { name: "項目を上へ移動", exact: true }).last().focus();
+  await page.keyboard.press("Enter");
+  await expect(builder.getByLabel("項目名", { exact: true }).nth(1)).toBeFocused();
+  await expect(builder.getByLabel("項目名", { exact: true }).nth(1)).toHaveValue("期限");
+  await noHorizontalOverflow(page);
+  await page.screenshot({ path: `.artifacts/settings-${info.project.name}.png`, fullPage: true });
+  await builder.getByRole("button", { name: "変更を保存", exact: true }).click();
+  await expect(builder).not.toBeVisible();
+  await expect(page.locator("#app-title")).toHaveText(`Renamed ${info.project.name}`);
+  const saved = await (await request.get(`/api/v1/apps/${app.id}/records/${original.id}`)).json();
+  expect(saved).toEqual(original);
+  const schema = await (await request.get(`/api/v1/apps/${app.id}`)).json();
+  expect(schema.fields[2].options).toEqual(["\uFEFFOpen", "Done"]);
+  expect(schema.revision).toBe(2); expect(schema.fields.map((field) => field.key)).toEqual(["field_1", "field_2", "state"]);
+  await page.getByRole("button", { name: `レコード${original.id}を編集`, exact: true }).click();
+  const editor = page.locator("#record-dialog");
+  await expect(editor.getByLabel(/^件名/)).toHaveValue("Original"); await expect(editor.getByLabel(/^状況/)).toHaveValue("\uFEFFOpen");
+  await expect(editor.getByLabel(/^期限/)).toHaveValue(""); await editor.getByLabel(/^期限/).fill("2026-10-15");
+  await editor.getByRole("button", { name: "保存", exact: true }).click(); await expect(editor).not.toBeVisible();
+  await page.reload(); await expect(page.getByRole("cell", { name: "2026-10-15", exact: true })).toBeVisible();
+});
+
+test("schema conflicts keep the draft and explicit reload recovers current settings", async ({ page, request }, info) => {
+  const { app } = await seedApp(request, `Schema conflict ${info.project.name}`, ["Saved"]);
+  await page.goto("/"); await page.locator("#edit-app").click(); const builder = page.locator("#app-dialog");
+  await builder.getByLabel("アプリ名", { exact: true }).fill("My schema draft");
+  const update = await request.put(`/api/v1/apps/${app.id}`, { headers, data: { revision: app.revision, name: "Other settings", fields: app.fields } });
+  expect(update.ok()).toBeTruthy();
+  await builder.getByRole("button", { name: "変更を保存", exact: true }).click();
+  await expect(builder.getByRole("alert")).toContainText("ほかの変更が保存されています");
+  await expect(builder.getByLabel("アプリ名", { exact: true })).toHaveValue("My schema draft");
+  await expect(builder.getByLabel("種類", { exact: true }).first()).toBeDisabled();
+  await builder.getByRole("button", { name: /^最新版を読み込む/ }).click();
+  await expect(builder.getByLabel("アプリ名", { exact: true })).toHaveValue("Other settings");
+  await builder.getByLabel("アプリ名", { exact: true }).fill(`Recovered ${info.project.name}`);
+  await builder.getByRole("button", { name: "変更を保存", exact: true }).click(); await expect(builder).not.toBeVisible();
+  const saved = await (await request.get(`/api/v1/apps/${app.id}`)).json(); expect(saved.revision).toBe(3);
+  await expect(page.getByRole("cell", { name: "Saved", exact: true })).toBeVisible();
+});
+
+test("pending schema save locks controls and prevents cancellation", async ({ page, request }, info) => {
+  const { app } = await seedApp(request, `Pending schema ${info.project.name}`, ["Kept"]);
+  await page.goto("/"); await page.locator("#edit-app").focus(); await page.keyboard.press("Enter");
+  const builder = page.locator("#app-dialog"); await expect(builder.getByLabel("アプリ名", { exact: true })).toBeFocused();
+  await page.keyboard.press("Escape"); await expect(page.locator("#edit-app")).toBeFocused();
+  await page.locator("#edit-app").click(); await builder.getByLabel("アプリ名", { exact: true }).fill(`Pending saved ${info.project.name}`);
+  let release, arrived; const gate = new Promise((resolve) => { release = resolve; }); const arrival = new Promise((resolve) => { arrived = resolve; });
+  await page.route(`**/api/v1/apps/${app.id}`, async (route) => { if (route.request().method() !== "PUT") return route.continue(); arrived(); await gate; await route.continue(); });
+  await builder.getByRole("button", { name: "変更を保存", exact: true }).click(); await arrival;
+  await expect(builder.getByLabel("アプリ名", { exact: true })).toBeDisabled();
+  await expect(builder.getByRole("button", { name: "キャンセル", exact: true })).toBeDisabled();
+  await expect(builder.getByRole("button", { name: "＋ 項目を追加", exact: true })).toBeDisabled();
+  await page.keyboard.press("Escape"); await expect(builder).toBeVisible(); release();
+  await expect(builder).not.toBeVisible(); await expect(page.locator("#app-title")).toHaveText(`Pending saved ${info.project.name}`);
+  await expect(page.getByRole("cell", { name: "Kept", exact: true })).toBeVisible();
+});
+
+
+test("an older form tab preserves added field values after loading a newer record revision", async ({ page, request, context }, info) => {
+  const { app, records } = await seedApp(request, `Old form tab ${info.project.name}`, ["Original"]);
+  await page.goto("/");
+  const newer = await context.newPage(); await newer.goto("/"); await newer.locator("#edit-app").click();
+  const builder = newer.locator("#app-dialog");
+  await builder.getByRole("button", { name: "＋ 項目を追加", exact: true }).click();
+  await builder.getByLabel("項目名", { exact: true }).last().fill("引継ぎ");
+  await builder.getByRole("button", { name: "変更を保存", exact: true }).click(); await expect(builder).not.toBeVisible();
+  await newer.getByRole("button", { name: `レコード${records[0].id}を編集`, exact: true }).click();
+  await newer.locator("#record-dialog").getByLabel(/^引継ぎ/).fill("保全した値");
+  await newer.locator("#record-dialog").getByRole("button", { name: "保存", exact: true }).click();
+  await expect(newer.locator("#record-dialog")).not.toBeVisible();
+  await page.getByLabel("レコードを検索", { exact: true }).fill("Original");
+  const loaded = page.waitForResponse((response) => response.url().includes(`/apps/${app.id}/records?`) && response.url().includes("q=Original"));
+  await page.getByRole("button", { name: "検索", exact: true }).click(); await loaded;
+  await page.getByRole("button", { name: `レコード${records[0].id}を編集`, exact: true }).click();
+  const editor = page.locator("#record-dialog"); await expect(editor.getByLabel(/^引継ぎ/)).toHaveCount(0);
+  await editor.getByLabel(/^名称/).fill("From old tab");
+  await editor.getByRole("button", { name: "保存", exact: true }).click(); await expect(editor).not.toBeVisible();
+  const saved = await (await request.get(`/api/v1/apps/${app.id}/records/${records[0].id}`)).json();
+  expect(saved.revision).toBe(3); expect(saved.values).toEqual({ name: "From old tab", field_1: "保全した値" });
+  await newer.close();
+});
+
+
+test("a delayed settings load cannot replace a new app draft", async ({ page, request }, info) => {
+  const { app } = await seedApp(request, `Delayed settings ${info.project.name}`);
+  await page.goto("/");
+  let release, arrived; const gate = new Promise((resolve) => { release = resolve; }); const arrival = new Promise((resolve) => { arrived = resolve; });
+  await page.route(`**/api/v1/apps/${app.id}`, async (route) => { if (route.request().method() !== "GET") return route.continue(); arrived(); await gate; await route.continue(); });
+  await page.locator("#edit-app").click(); await arrival;
+  await page.locator("#create-app").click(); const builder = page.getByRole("dialog", { name: "アプリを作る", exact: true });
+  await builder.getByLabel("アプリ名", { exact: true }).fill("New app draft");
+  await builder.getByLabel("項目名", { exact: true }).first().fill("Draft field");
+  const completed = page.waitForResponse((response) => response.url().endsWith(`/api/v1/apps/${app.id}`)); release(); await completed;
+  await expect(page.locator("#edit-app")).toBeEnabled();
+  await expect(builder).toBeVisible(); await expect(builder.getByLabel("アプリ名", { exact: true })).toHaveValue("New app draft");
+  await expect(builder.getByLabel("項目名", { exact: true }).first()).toHaveValue("Draft field");
+  await expect(builder.getByRole("button", { name: "アプリを作成", exact: true })).toBeVisible();
+});

@@ -30,10 +30,11 @@ Other kinds cannot carry nonempty options. Option labels are compared exactly an
 
 SQLite format 1 contains the original text/number/boolean schemas.
 Format 2 adds date/select/textarea, with optional `options` metadata in each saved field.
-On startup, an owned format-1 database advances to 2 in a transaction; tables, field JSON, values, IDs, and revisions are preserved.
-No row rewrite is required. Missing `options` decode as an empty list.
-Older binaries refuse format 2 instead of misreading new field kinds. Future and unrelated formats are refused.
+Format 3 adds `apps.revision` with default 1 for schema conflict checks.
+On startup, an owned format-1/2 database advances directly to 3 in a transaction; field JSON, record values, IDs, and record revisions are preserved.
+No record rewrite is required. Missing `options` decode as an empty list.
+Older binaries refuse newer formats instead of misreading schema rules. Future and unrelated formats are refused.
 Before upgrading a database you need to keep, stop the server and copy the database together with any WAL/SHM files.
 Keep that stopped copy if you need to return to an older binary; automatic downgrade is unsupported.
 
-App schemas remain immutable in this milestone. Schema-editing rules will require a separate design and migration.
+App/field labels and order are editable; new optional fields are allowed. See [safe form editing](schema-editing.md).
