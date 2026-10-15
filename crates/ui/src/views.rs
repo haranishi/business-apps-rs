@@ -20,7 +20,7 @@ pub struct ViewState {
 #[derive(Clone)]
 pub struct ViewEditor {
     pub app_id: i64,
-    pub scope: u64,
+    pub selection: u64,
     pub prior: Option<SavedView>,
     pub definition: ViewDefinition,
 }

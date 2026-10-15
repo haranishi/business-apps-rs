@@ -29,6 +29,10 @@ Catalog refresh now updates only the catalog/status, retaining a deleted active 
 App selections have a separate monotonic generation, preventing obsolete same-ID continuations from invalidating an editor.
 Settings saves preserve an unchanged API-origin name despite native single-line CR/LF normalization.
 The reproduction regressions remain in the normal browser suite.
+Head `198f305` passed [all required CI and 126 browser cases](https://github.com/haranishi/business-apps-rs/actions/runs/38745164642).
+Targeted review then identified the same lifecycle problem during a manual catalog retry within one startup selection.
+The [additional reproduction](https://github.com/haranishi/business-apps-rs/actions/runs/38745608699) at `a90b46b` failed only that new case at all widths; 126 other cases passed.
+Automatic catalog loading now yields to any intervening explicit retry; editor validity uses app/editor generations independently of catalog reads.
 Final required CI, browser regressions and the release baseline must pass for the final PR head; earlier successes do not establish that result.
 
 ## Visual and security evidence limits
@@ -38,6 +42,7 @@ The reviewer found no confirmed defect in the added panel/dialog; eight visible 
 This is not a full UI/experience harness pass: still images do not verify keyboard behavior, measured contrast or perceived speed.
 The first captures accumulated prior synthetic apps and omitted the mobile dialog footer in full-page stitching.
 Representative evidence now isolates the app catalog in the screenshot fixture and includes viewport/footer captures, alongside real record/view API operations.
+The independent reviewer inspected all nine corrected viewport captures from `198f305`; both evidence gaps were resolved and no additional visible defect was identified.
 Automated focus/pending/error paths are separate evidence from manual usability evaluation.
 
 Independent static security/provenance review of `4416fd2...b302ea7` found no actionable regression.

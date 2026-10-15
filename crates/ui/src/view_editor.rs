@@ -44,7 +44,7 @@ impl Ui {
             };
             let editor = ViewEditor {
                 app_id: app.id,
-                scope: state.views.request,
+                selection: state.app_selection,
                 prior,
                 definition,
             };
@@ -186,12 +186,12 @@ impl Ui {
         self.update_view_controls();
     }
 
-    // Both the app/catalog generation and the editor generation must still
-    // match before an async response may replace a draft or the active view.
+    // App selection and editor generations protect drafts across A → B → A.
+    // Reading the catalog must not invalidate a pending editor operation.
     fn view_editor_current(&self, editor: &ViewEditor, request: u64) -> bool {
         let state = self.state.borrow();
         state.views.editor_request == request
-            && state.views.request == editor.scope
+            && state.app_selection == editor.selection
             && state.active.as_ref().map(|app| app.id) == Some(editor.app_id)
     }
 
