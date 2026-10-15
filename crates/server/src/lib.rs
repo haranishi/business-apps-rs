@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 mod assets;
+mod csv;
 pub mod store;
 
 use axum::{
@@ -22,6 +23,7 @@ pub enum AppError {
     NotFound,
     Conflict,
     Unavailable,
+    ExportLimit,
 }
 
 impl std::fmt::Display for AppError {
@@ -63,6 +65,11 @@ impl IntoResponse for AppError {
                 StatusCode::SERVICE_UNAVAILABLE,
                 "unavailable",
                 "Storage is unavailable.".into(),
+            ),
+            Self::ExportLimit => (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "export_limit",
+                "CSV export exceeds 10,000 records or 16 MiB. Narrow your search and retry.".into(),
             ),
         };
         (
@@ -108,6 +115,7 @@ pub fn router(store: Store) -> Router {
             "/api/v1/apps/{app_id}/records",
             get(list_records).post(create_record),
         )
+        .route("/api/v1/apps/{app_id}/records.csv", get(export_records))
         .route(
             "/api/v1/apps/{app_id}/records/{id}",
             get(get_record).put(update_record).delete(delete_record),
@@ -217,6 +225,11 @@ struct ListQuery {
 struct DeleteQuery {
     revision: i64,
 }
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExportQuery {
+    q: Option<String>,
+}
 
 async fn list_apps(
     State(store): State<Store>,
@@ -264,6 +277,24 @@ async fn list_records(
             .await?,
     ))
 }
+async fn export_records(
+    State(store): State<Store>,
+    Path(app_id): Path<i64>,
+    Query(query): Query<ExportQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let csv = store.export_csv(app_id, query.q).await?;
+    Ok((
+        [
+            ("content-type", "text/csv; charset=utf-8".to_owned()),
+            (
+                "content-disposition",
+                format!("attachment; filename=\"app-{app_id}-records.csv\""),
+            ),
+        ],
+        csv,
+    ))
+}
+
 async fn create_record(
     State(store): State<Store>,
     Path(app_id): Path<i64>,

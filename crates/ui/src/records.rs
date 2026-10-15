@@ -41,6 +41,8 @@ impl Ui {
             state.next = None;
             state.cursors = vec![None];
             state.page = 0;
+            state.query.clear();
+            state.export_ready = false;
         }
         set_value(&id("search"), "");
         hidden(&id("welcome"), true);
@@ -89,7 +91,7 @@ impl Ui {
         }
         if state.records.is_empty() {
             let row = child(&body, "tr", &[], None)?;
-            let message = if value(&id("search")).is_empty() {
+            let message = if state.query.is_empty() {
                 "レコードはまだありません。「レコードを追加」から登録しましょう。"
             } else {
                 "一致するレコードが見つかりませんでした。"
@@ -115,6 +117,10 @@ impl Ui {
         disabled(&id("previous-page"), state.loading || state.page == 0);
         disabled(&id("next-page"), state.loading || state.next.is_none());
         text("page-number", &format!("{} ページ", state.page + 1));
+        disabled(
+            &id("export-csv"),
+            state.loading || !state.export_ready || state.exporting,
+        );
         self.update_table_hint();
         Ok(())
     }
@@ -131,16 +137,17 @@ impl Ui {
             if let Some(Some(cursor)) = state.cursors.get(state.page) {
                 path.push_str(&format!("&before={cursor}"));
             }
-            let search = value(&id("search"));
-            let search = search.trim();
+            let search = &state.query;
             if !search.is_empty() {
                 path.push_str("&q=");
                 path.push_str(&String::from(js_sys::encode_uri_component(search)));
             }
             state.request += 1;
             state.loading = true;
+            state.export_ready = false;
             (state.request, path)
         };
+        text("export-status", "");
         self.render_records()?;
         let response = api::<RecordPage>(&path, "GET", None).await;
         if request != self.state.borrow().request {
@@ -151,6 +158,7 @@ impl Ui {
                 let mut state = self.state.borrow_mut();
                 state.records = page.records;
                 state.next = page.next_cursor;
+                state.export_ready = true;
                 text("status", "");
                 true
             }

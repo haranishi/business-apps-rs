@@ -54,6 +54,8 @@ mod builder;
 #[cfg(target_arch = "wasm32")]
 mod dom;
 #[cfg(target_arch = "wasm32")]
+mod export;
+#[cfg(target_arch = "wasm32")]
 mod layout;
 #[cfg(target_arch = "wasm32")]
 mod records;
