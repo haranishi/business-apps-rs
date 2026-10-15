@@ -28,5 +28,6 @@ An operator needs to find records by status, checkbox, quantity, date, or missin
 - Keep drafts distinct from applied conditions, discard superseded requests, and retry errors without exporting an older view.
 - Preserve CRUD, revisions, pending locks, schema editing, saved values, reopening and CSV focus regression.
 - Run native Linux/macOS, Rust 1.88, WASM Clippy, dependency/advisory checks and Chromium at 390/768/1440 px.
+- Record a release HTTP baseline with synthetic 10,000-row data, including typed-filter scans, in CI artifacts.
 - Inspect screenshots and receive independent read-only standards/specification review.
 - Use at most three improvement rounds; stop after the same failure twice.

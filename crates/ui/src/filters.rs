@@ -48,6 +48,8 @@ impl Ui {
             &host,
             if matches!(kind, Some(FieldKind::Boolean | FieldKind::Select)) {
                 "select"
+            } else if kind == Some(FieldKind::Textarea) {
+                "textarea"
             } else {
                 "input"
             },
@@ -95,6 +97,10 @@ impl Ui {
                     control.set_attribute(name, value)?;
                 }
             }
+            Some(FieldKind::Textarea) => {
+                control.set_attribute("rows", "3")?;
+                control.set_attribute("maxlength", "256")?;
+            }
             _ => {
                 control.set_attribute("type", "text")?;
                 control.set_attribute("maxlength", "256")?;
@@ -109,7 +115,15 @@ impl Ui {
         disabled(&id("filter-mode"), !selected);
         let needs_value = selected && value(&id("filter-mode")) == "equals";
         disabled(&id("filter-value"), !needs_value);
-        required(&id("filter-value"), needs_value);
+        let selected = value(&id("filter-field"));
+        let text_field = self
+            .state
+            .borrow()
+            .active
+            .as_ref()
+            .and_then(|app| app.fields.iter().find(|field| field.key == selected))
+            .is_some_and(|field| matches!(field.kind, FieldKind::Text | FieldKind::Textarea));
+        required(&id("filter-value"), needs_value && !text_field);
     }
 
     pub fn read_filter(&self) -> std::result::Result<Option<RecordFilter>, &'static str> {
@@ -151,7 +165,7 @@ impl Ui {
 
     pub fn render_query_summary(&self) {
         let state = self.state.borrow();
-        if !state.loading && !state.export_ready {
+        if !state.loading && !state.records_ready {
             text(
                 "query-summary",
                 "一覧の取得に失敗しました。条件を再適用してください。",

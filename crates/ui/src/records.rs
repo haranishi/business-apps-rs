@@ -43,7 +43,7 @@ impl Ui {
             state.page = 0;
             state.query.clear();
             state.filter = None;
-            state.export_ready = false;
+            state.records_ready = false;
             state.loading = true;
         }
         set_value(&id("search"), "");
@@ -117,12 +117,18 @@ impl Ui {
                 format!("このページに {} 件", state.records.len())
             },
         );
-        disabled(&id("previous-page"), state.loading || state.page == 0);
-        disabled(&id("next-page"), state.loading || state.next.is_none());
+        disabled(
+            &id("previous-page"),
+            state.loading || !state.records_ready || state.page == 0,
+        );
+        disabled(
+            &id("next-page"),
+            state.loading || !state.records_ready || state.next.is_none(),
+        );
         text("page-number", &format!("{} ページ", state.page + 1));
         disabled(
             &id("export-csv"),
-            state.loading || !state.export_ready || state.exporting,
+            state.loading || !state.records_ready || state.exporting,
         );
         self.update_table_hint();
         self.render_query_summary();
@@ -148,7 +154,7 @@ impl Ui {
             ));
             state.request += 1;
             state.loading = true;
-            state.export_ready = false;
+            state.records_ready = false;
             (state.request, path)
         };
         text("export-status", "");
@@ -162,7 +168,7 @@ impl Ui {
                 let mut state = self.state.borrow_mut();
                 state.records = page.records;
                 state.next = page.next_cursor;
-                state.export_ready = true;
+                state.records_ready = true;
                 text("status", "");
                 true
             }
@@ -179,7 +185,7 @@ impl Ui {
     pub async fn turn_page(&self, next: bool) -> Result {
         {
             let mut state = self.state.borrow_mut();
-            if state.loading {
+            if state.loading || !state.records_ready {
                 return Ok(());
             }
             if next {

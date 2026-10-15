@@ -11,7 +11,7 @@ impl Ui {
     pub async fn export_csv(&self) -> Result {
         let (request, app_id, query) = {
             let mut state = self.state.borrow_mut();
-            if state.loading || !state.export_ready || state.exporting {
+            if state.loading || !state.records_ready || state.exporting {
                 return Ok(());
             }
             let Some(app) = &state.active else {
@@ -42,7 +42,7 @@ impl Ui {
             state.exporting = false;
             // Keep the table's existing buttons alive: an open record dialog
             // may need its invoking button when native focus is restored.
-            disabled(&id("export-csv"), state.loading || !state.export_ready);
+            disabled(&id("export-csv"), state.loading || !state.records_ready);
         }
         // A page/search/app reload supersedes an export, including its feedback.
         if request != self.state.borrow().request {

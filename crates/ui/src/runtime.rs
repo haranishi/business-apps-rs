@@ -20,7 +20,7 @@ pub struct State {
     pub loading: bool,
     pub query: String,
     pub filter: Option<RecordFilter>,
-    pub export_ready: bool,
+    pub records_ready: bool,
     pub exporting: bool,
     pub editing_record: Option<Record>,
     pub editing_app: Option<App>,
@@ -335,6 +335,7 @@ impl Ui {
         let mut state = self.state.borrow_mut();
         state.cursors = vec![None];
         state.page = 0;
+        state.next = None;
     }
 
     pub fn update_table_hint(&self) {

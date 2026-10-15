@@ -21,7 +21,8 @@ Independent specification review identified table replacement during export comp
 Rust cases cover encoding/formula prefixes, typed values, schema order, search/isolation and row/byte rejection without an attachment.
 Browser flows cover complete multi-page downloads, BOM/filename, applied versus draft text, retry, pending/stale handling and editing focus.
 Initial CI screenshots at 390/768/1440 px were inspected; content wraps without horizontal page overflow.
-Final corrected CI and screenshots must be checked on the PR head before merge.
+Final head `c399d18` passed [all five CI checks](https://github.com/haranishi/business-apps-rs/actions/runs/38735772900): 36 Rust and 66 Chromium cases.
+Final three-width captures received independent visual review with no concrete defect; PR 10 was merged after verification.
 Large native/WASM builds ran on GitHub Actions; local checks covered formatting, docs, diff and test JavaScript syntax.
 No manual local app session or isolated dynamic security audit ran; source security review found no concrete bypass candidate.
 No certification of Excel/LibreOffice behavior or CSV round trips is claimed; [CSV limitations](../../docs/csv.md) apply.

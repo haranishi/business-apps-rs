@@ -29,6 +29,7 @@ The field must belong to the selected app; values follow its type:
 | Any field | `null` selects missing/null/empty-string cells, excluding whitespace-only text, zero and false |
 
 An equality value of `""` matches explicitly saved empty text; `null` includes missing and null cells too.
+The browser multiline filter uses LF line endings; API filters can retain literal CR/CRLF when supplied.
 Unknown fields/properties, missing field/value, invalid JSON, wrong types, objects/arrays and invalid dates/choices return 400.
 The filter is validated in the domain; SQL binds both the key and value without constructing a user-controlled JSON path.
 Without `filter`, existing listing/search/export behavior is preserved. No stored-data change is required.
