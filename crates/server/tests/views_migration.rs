@@ -182,6 +182,85 @@ async fn independent_connections_share_the_cap_and_optimistic_revision_boundary(
     ));
 }
 
+#[test]
+fn a_later_migration_failure_rolls_back_an_already_added_revision_column() {
+    for version in [1, 2] {
+        let db = Database::new();
+        let (fields, values) = legacy(&db);
+        let connection = Connection::open(&db.0).unwrap();
+        connection.execute_batch("ALTER TABLE apps DROP COLUMN revision; CREATE TABLE record_views(original TEXT); INSERT INTO record_views VALUES('keep');").unwrap();
+        connection
+            .pragma_update(None, "user_version", version)
+            .unwrap();
+        let schema: String = connection
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE name='apps'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        drop(connection);
+        assert!(matches!(Store::open(&db.0), Err(AppError::Unavailable)));
+        let connection = Connection::open(&db.0).unwrap();
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            version
+        );
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "application_id", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            1111577171
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT sql FROM sqlite_master WHERE name='apps'",
+                    [],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            schema
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT count(*) FROM pragma_table_info('apps') WHERE name='revision'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT fields FROM apps WHERE id=41", [], |row| row
+                    .get::<_, String>(0))
+                .unwrap(),
+            fields
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT values_json FROM records WHERE id=83 AND revision=7",
+                    [],
+                    |row| row.get::<_, String>(0)
+                )
+                .unwrap(),
+            values
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT original FROM record_views", [], |row| row
+                    .get::<_, String>(0))
+                .unwrap(),
+            "keep"
+        );
+    }
+}
+
 #[tokio::test]
 async fn simultaneous_opens_observe_one_complete_migration() {
     let db = Database::new();

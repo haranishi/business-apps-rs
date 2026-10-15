@@ -11,6 +11,7 @@ The Rust UI in `crates/ui` owns browser layout and interactions; CSS is in `web/
 | Record editor | Save and find an entry | Required errors preserve the draft; saved values reopen correctly |
 | App owner | Take records into a spreadsheet | CSV includes all matching pages; errors allow retry without losing the workspace |
 | Record editor | Find work by a typed field | One exact/empty condition combines with text search, pages, and CSV |
+| Daily operator | Recall a recurring list | Save applied conditions and visible-column order in a named view |
 | Record editor | Edit an already-open entry | Stale saves preserve input and offer explicit reload |
 | App owner | Rename, reorder, or add a field | Old values stay intact; additions are optional; conflicting settings keep the draft |
 
@@ -19,9 +20,9 @@ The Rust UI in `crates/ui` owns browser layout and interactions; CSS is in `web/
 | Layer | Decision |
 | --- | --- |
 | Strategy | Make one working tracker possible in a short session |
-| Requirements | App creation, typed records, search, settings, and persisted edits |
-| Structure | App list → table → record dialog; settings reuse the builder |
-| Skeleton | App navigation beside the table; search and actions above it |
+| Requirements | App creation, typed records, search, named views, settings, and persisted edits |
+| Structure | App list → named view → table → record dialog; settings reuse the builder |
+| Skeleton | App navigation beside the table; view selector, search and actions above it |
 | Surface | Neutral background, teal actions, native controls, visible labels and focus |
 
 This local preview stores business records; public sharing is outside its purpose.
@@ -37,6 +38,7 @@ The interface uses Japanese labels. English or Japanese contributions can improv
 | Builder | Name fields, choose types, and enter select choices one per line |
 | Record editor | Enter native date/select values and plain multiline text; save or cancel |
 | Form settings | Rename/reorder/add optional fields while preserving existing values |
+| View settings | Name applied conditions, select/reorder columns, update or delete the view |
 
 The following captures use synthetic task data; they illustrate the workflows and are not proof of a particular build passing tests.
 
@@ -65,6 +67,9 @@ flowchart LR
   Edit -->|conflict, keep draft| Reload[Explicit record reload]
   Reload --> Edit
   Table -->|choose app or search| Table
+  Table --> Views[Save or edit named view]
+  Views -->|save current revision| Table
+  Table -->|choose saved view or standard list| Table
 ```
 
 ## Interaction constraints
@@ -80,6 +85,7 @@ flowchart LR
 - CSV uses the last submitted search, including all pages; unsubmitted text never changes paging/export.
 - CSV shows pending/success/error feedback, locks duplicate downloads, and discards responses after a table reload.
 - [Field filters](record-filters.md) apply explicitly; a visible summary distinguishes fetched results from control drafts.
+- [Named views](saved-views.md) reuse applied conditions and column order; failures retain drafts and allow explicit reload.
 - Late responses must not replace a newer app selection or editing draft; old-form edits must preserve unknown saved fields.
 
 [Rich-field contracts](../.agent-harness/contracts/rich-fields.md) and [schema-editing contracts](../.agent-harness/contracts/schema-editing.md) record the feature decisions.

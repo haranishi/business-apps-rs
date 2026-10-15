@@ -182,17 +182,27 @@ async fn api_validation_unique_names_and_revisions_are_explicit() {
     let app_id = store.create_app(schema("HTTP")).await.unwrap().id;
     let app = router(store.clone());
     let path = format!("/api/v1/apps/{app_id}/views");
-    for body in [
-        json!({"name":"x","columns":[]}),
-        json!({"name":"x","columns":["other"]}),
-        json!({"name":"x","columns":["name"],"extra":1}),
-        json!({"name":"x","columns":["name"],"filter":{"field":"done","value":0}}),
+    for (body, expected) in [
+        (json!({"name":"x","columns":[]}), StatusCode::BAD_REQUEST),
+        (
+            json!({"name":"x","columns":["other"]}),
+            StatusCode::BAD_REQUEST,
+        ),
+        (
+            json!({"name":"x","columns":["name"],"extra":1}),
+            StatusCode::UNPROCESSABLE_ENTITY,
+        ),
+        (
+            json!({"name":"x","columns":["name"],"filter":{"field":"done","value":0}}),
+            StatusCode::BAD_REQUEST,
+        ),
     ] {
         assert_eq!(
             request(&app, "POST", &path, body, Some("1"), None).await.0,
-            StatusCode::BAD_REQUEST
+            expected
         );
     }
+    assert!(store.list_views(app_id).await.unwrap().is_empty());
     let (status, view) = request(
         &app,
         "POST",

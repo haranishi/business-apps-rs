@@ -21,7 +21,8 @@ The screenshot uses synthetic data. See [screen diagrams and the editor](docs/ui
 | Records | Create/read/edit/delete, text search and [typed field filters](docs/record-filters.md); durable SQLite and revision checks |
 | Export | [Spreadsheet-oriented CSV](docs/csv.md) of all matching pages, with formula protection and explicit size limits |
 | Form settings | Rename app/labels, reorder fields, add optional fields; existing types/required flags/choices stay fixed |
-| Planned | Team login, role-based permissions, audit history, views, import, workflows, packaged deployment |
+| Named views | [Save applied conditions and visible-column order](docs/saved-views.md), recall, update, or delete the list definition |
+| Planned | Team login, role-based permissions, audit history, import, workflows, packaged deployment |
 
 The [roadmap](docs/roadmap.md) separates these stages. Text search scans string values within one app.
 
@@ -43,10 +44,12 @@ cargo xtask dev
 3. Choose **レコードを追加**, enter `架空商事` and `hello@example.invalid`, then **保存**.
 4. Search for `架空商事`, open **編集**, and save a change.
 5. Open **フォーム設定** to rename labels, reorder fields, or add an optional field.
+6. Apply a search/condition, then **この条件で一覧を保存** to name a reusable list and choose its columns.
 
 Restart the server to reopen saved records. The database is `.data/business-apps.sqlite`, ignored by Git.
 The preview accepts loopback connections only and has no authentication; use synthetic data.
 Existing fields cannot be removed; their keys, types, required flags, and choices stay fixed to preserve saved values.
+Existing databases upgrade to format 4; read the [backup and rollback steps](docs/saved-views.md#stored-data-upgrade-and-recovery) before upgrading.
 
 ## Build the server and browser UI
 

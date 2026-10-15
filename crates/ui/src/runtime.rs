@@ -28,6 +28,7 @@ pub struct State {
     pub field_counter: u32,
     pub record_busy: bool,
     pub app_busy: bool,
+    pub views: crate::views::ViewState,
 }
 
 pub struct Ui {
@@ -124,13 +125,21 @@ impl Ui {
                     let state = ui.state.borrow();
                     if (target.id() == "record-dialog" && state.record_busy)
                         || (target.id() == "app-dialog" && state.app_busy)
+                        || (target.id() == "view-dialog" && state.views.busy)
                     {
                         event.prevent_default();
                     }
                     return;
                 }
                 if kind == "change" {
-                    if target.id() == "filter-field" {
+                    if target.id() == "record-view" {
+                        spawn_local(async move {
+                            if let Err(error) = ui.choose_view().await {
+                                ui.unexpected(error);
+                            }
+                        });
+                        return;
+                    } else if target.id() == "filter-field" {
                         if let Err(error) = ui.render_filter_value() {
                             ui.unexpected(error);
                         }
@@ -145,7 +154,9 @@ impl Ui {
                     return;
                 }
                 if kind == "submit" {
-                    if !["app-form", "record-form", "search-form"].contains(&target.id().as_str()) {
+                    if !["app-form", "record-form", "search-form", "view-form"]
+                        .contains(&target.id().as_str())
+                    {
                         return;
                     }
                     event.prevent_default();
@@ -231,6 +242,7 @@ impl Ui {
         match target {
             "app-form" => self.save_app().await,
             "record-form" => self.save_record().await,
+            "view-form" => self.save_view().await,
             "search-form" => {
                 let filter = match self.read_filter() {
                     Ok(filter) => filter,
@@ -269,6 +281,17 @@ impl Ui {
             "reload-record" => self.reload_record().await,
             "delete-record" => self.delete_record().await,
             "export-csv" => self.export_csv().await,
+            "save-view" => self.open_view_editor(false),
+            "edit-view" => self.open_view_editor(true),
+            "reload-view" => self.reload_view().await,
+            "delete-view" => self.delete_view().await,
+            "reload-views" => {
+                let app_id = self.state.borrow().active.as_ref().map(|app| app.id);
+                if let Some(app_id) = app_id {
+                    self.load_views(app_id).await?;
+                }
+                Ok(())
+            }
             "clear-search" => {
                 set_value(&id("search"), "");
                 self.state.borrow_mut().query.clear();
@@ -294,6 +317,12 @@ impl Ui {
             _ if button.class_list_contains("close-record") => {
                 if !self.state.borrow().record_busy {
                     Self::dialog("record-dialog").close();
+                }
+                Ok(())
+            }
+            _ if button.class_list_contains("close-view") => {
+                if !self.state.borrow().views.busy {
+                    Self::dialog("view-dialog").close();
                 }
                 Ok(())
             }
@@ -327,6 +356,7 @@ impl Ui {
                 self.open_record(record)
             }
             _ if button.has_attribute("data-field-action") => self.field_action(button),
+            _ if button.has_attribute("data-view-column-action") => self.view_column_action(button),
             _ => Ok(()),
         }
     }
@@ -361,12 +391,14 @@ impl Classes for web_sys::Element {
 
 pub struct ApiError {
     pub status: u16,
+    pub code: Option<String>,
     pub message: String,
 }
 impl From<JsValue> for ApiError {
     fn from(_error: JsValue) -> Self {
         Self {
             status: 0,
+            code: None,
             message: "サーバーに接続できません。接続を確認して再試行してください。".into(),
         }
     }
@@ -388,11 +420,13 @@ pub async fn api<T: DeserializeOwned>(
     } else {
         serde_json::from_str(&raw).map_err(|_| ApiError {
             status,
+            code: None,
             message: "サーバーからの応答を読み込めませんでした。".into(),
         })?
     };
     serde_json::from_value(data).map_err(|_| ApiError {
         status,
+        code: None,
         message: "サーバーからの応答を読み込めませんでした。".into(),
     })
 }
@@ -427,6 +461,7 @@ pub async fn api_response(
             .as_string()
             .unwrap_or_default();
         let data: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
+        let code = data.pointer("/error/code").and_then(Value::as_str);
         let detail = data.pointer("/error/message").and_then(Value::as_str);
         let validation = detail.map(|message| {
             if message.starts_with("Select fields need") {
@@ -436,10 +471,16 @@ pub async fn api_response(
             }
         });
         let message = match status {
+            409 if code == Some("duplicate_view_name") => {
+                "同じ名前の一覧があります。別の一覧名を入力してください。"
+            }
             409 => {
                 "ほかの変更が保存されています。最新版を読み込んでから、もう一度編集してください。"
             }
-            404 => "このレコードまたはアプリは見つかりません。",
+            404 => "このレコード、アプリ、または一覧は見つかりません。",
+            400 if code == Some("view_limit") => {
+                "保存できる一覧は1アプリ50件までです。不要な一覧を削除して再試行してください。"
+            }
             413 if data.pointer("/error/code").and_then(Value::as_str) == Some("export_limit") => {
                 "CSVは最大10,000件・16 MiBまでです。検索で絞り込んでから再試行してください。"
             }
@@ -448,6 +489,7 @@ pub async fn api_response(
         };
         return Err(ApiError {
             status,
+            code: code.map(str::to_owned),
             message: message.into(),
         });
     }

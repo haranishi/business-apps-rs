@@ -25,9 +25,22 @@ Definitions require `name` and `columns`; omitted `query` defaults to empty and 
 Use 1–80 characters for a trimmed name, 0–128 Unicode characters for query, and 1–32 distinct current field keys for columns.
 Names must be distinct within an app (exact case-sensitive match); an app has at most 50 saved views.
 Filter rules are the existing [typed-filter contract](record-filters.md). Unknown properties are rejected.
-Bad input/cap violations return 400; wrong app/view IDs return 404; stale revisions return 409.
+Domain input/cap violations return 400; invalid JSON shapes return Axum's 422 rejection.
+Wrong app/view IDs return 404; stale revisions return 409.
 Duplicate names return 409 with `error.code=duplicate_view_name`; the cap uses `error.code=view_limit`.
 The existing mutation header, loopback, Host/Origin/Fetch-Metadata, body-size and `no-store` protections apply.
+
+## Browser workflow
+
+Use **この条件で一覧を保存** after applying a search/condition, choose columns and their order, and enter a name.
+Unsubmitted search/filter input is excluded. Select a saved name to recall it; **すべてのレコード（標準）** resets conditions and columns.
+**一覧の設定** updates the selected definition using the currently applied conditions, or deletes only that definition.
+Definitions persist; the current selection resets on app switches or a page reload.
+Failed saves keep name/column drafts. Revision conflicts offer explicit reload, which replaces the draft only when requested.
+Pending writes/reloads lock controls and Escape; cancel returns focus to the invoking action.
+View-catalog failures have their own retry and do not block record editing or CSV.
+Hidden columns remain in record editors and the full-schema CSV; visibility does not restrict access to data.
+API-created CRLF/CR multiline conditions keep their exact value when an unchanged textarea is resubmitted.
 
 ## Stored-data upgrade and recovery
 

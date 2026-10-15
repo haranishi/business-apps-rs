@@ -28,6 +28,7 @@ WASM checks compile the browser target; a successful compilation does not establ
 Browser regression tests cover the existing operations while application layout/events run in Rust WASM.
 Use create → save → search → edit → reopen, required-error recovery, competing revisions, keyboard focus, and pending locks.
 Include old-form edits after a schema addition and delayed responses while a newer draft is open.
+Named-view tests also cover conditions/column order, hidden-field retention, full-schema CSV, revisions, retries and delayed catalog/record responses.
 
 Playwright starts and stops a separate loopback server with synthetic data and an isolated temporary database.
 It does not attach to your daily workspace database. Projects cover 390, 768, and 1440 px widths.
