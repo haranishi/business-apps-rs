@@ -12,6 +12,7 @@ use web_sys::{Event, EventTarget, HtmlDialogElement, RequestInit, ResizeObserver
 pub struct State {
     pub apps: Vec<App>,
     pub active: Option<App>,
+    pub app_selection: u64,
     pub records: Vec<Record>,
     pub next: Option<i64>,
     pub cursors: Vec<Option<i64>>,

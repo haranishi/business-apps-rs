@@ -57,6 +57,19 @@ impl Ui {
                 Some(&view.definition.name),
             )?;
         }
+        if let Some(selected) = &state.views.selected
+            && !state.views.list.iter().any(|view| view.id == selected.id)
+        {
+            child(
+                &select,
+                "option",
+                &[("value", &selected.id.to_string()), ("disabled", "")],
+                Some(&format!(
+                    "{}（削除済み・現在の表示）",
+                    selected.definition.name
+                )),
+            )?;
+        }
         set_value(
             &select,
             &state
@@ -82,6 +95,11 @@ impl Ui {
     pub fn update_view_controls(&self) {
         let state = self.state.borrow();
         let available = state.views.loaded && !state.views.loading && !state.views.busy;
+        let selected_exists = state
+            .views
+            .selected
+            .as_ref()
+            .is_some_and(|selected| state.views.list.iter().any(|view| view.id == selected.id));
         disabled(&id("record-view"), !available);
         disabled(&id("reload-views"), state.views.loading || state.views.busy);
         disabled(
@@ -90,10 +108,13 @@ impl Ui {
         );
         disabled(
             &id("edit-view"),
-            !available || !state.records_ready || state.views.selected.is_none(),
+            !available || !state.records_ready || !selected_exists,
         );
         let message = if let Some(view) = &state.views.selected {
-            if view.definition.query != state.query || view.definition.filter != state.filter {
+            if state.views.loaded && !selected_exists {
+                "この一覧は削除されています。現在の表示は保持しています。標準の一覧に切り替えるか、別名で保存できます。".into()
+            } else if view.definition.query != state.query || view.definition.filter != state.filter
+            {
                 "条件を変更しています。「一覧の設定」で保存すると更新できます。".into()
             } else {
                 format!(
@@ -122,7 +143,6 @@ impl Ui {
         text("view-status", "保存した一覧を読み込み中…");
         self.update_view_controls();
         let response = api::<Vec<SavedView>>(&format!("/apps/{app_id}/views"), "GET", None).await;
-        let mut reset = false;
         {
             let mut state = self.state.borrow_mut();
             if state.views.request != request
@@ -133,10 +153,6 @@ impl Ui {
             state.views.loading = false;
             match response {
                 Ok(views) => {
-                    reset =
-                        state.views.selected.as_ref().is_some_and(|selected| {
-                            !views.iter().any(|view| view.id == selected.id)
-                        });
                     state.views.list = views;
                     state.views.loaded = true;
                     text("view-status", "");
@@ -151,9 +167,6 @@ impl Ui {
             }
         }
         self.render_views()?;
-        if reset {
-            self.apply_view(None).await?;
-        }
         Ok(())
     }
 

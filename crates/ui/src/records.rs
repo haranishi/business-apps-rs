@@ -33,8 +33,9 @@ impl Ui {
     }
 
     pub async fn select_app(&self, app: App) -> Result {
-        {
+        let selection = {
             let mut state = self.state.borrow_mut();
+            state.app_selection += 1;
             state.app_form_request += 1;
             state.active = Some(app.clone());
             state.records.clear();
@@ -53,7 +54,8 @@ impl Ui {
             state.views.editor_request += 1;
             state.views.editor = None;
             state.views.busy = false;
-        }
+            state.app_selection
+        };
         set_value(&id("search"), "");
         self.reset_filter_controls()?;
         hidden(&id("welcome"), true);
@@ -66,8 +68,13 @@ impl Ui {
         text("view-status", "");
         self.render_records()?;
         self.load_records().await?;
+        if self.state.borrow().app_selection != selection {
+            return Ok(());
+        }
         self.load_views(app.id).await?;
-        query(&id("app-workspace"), ".table-scroll").set_scroll_left(0);
+        if self.state.borrow().app_selection == selection {
+            query(&id("app-workspace"), ".table-scroll").set_scroll_left(0);
+        }
         Ok(())
     }
 

@@ -52,6 +52,9 @@ test("save applied conditions and ordered columns, reopen, edit hidden fields, a
     { name: "大阪", done: true },
   ]);
   const errors = []; page.on("pageerror", (error) => errors.push(error.message));
+  // Keep screenshots focused on this synthetic app; other tests share the server.
+  // The Rust WASM UI still sends view and record requests to the real server.
+  await page.route("**/api/v1/apps", (route) => route.fulfill({ json: [app] }));
   await page.goto("/"); await expect(picker(page)).toBeEnabled();
   await page.getByText("項目の条件で絞り込む", { exact: true }).click();
   await page.getByLabel("レコードを検索", { exact: true }).fill("東京");
@@ -71,7 +74,13 @@ test("save applied conditions and ordered columns, reopen, edit hidden fields, a
   await expect(dialog(page).getByRole("checkbox", { name: "完了", exact: true })).toBeFocused();
   await expect(dialog(page).getByRole("button", { name: "完了を上へ", exact: true })).toBeDisabled();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
-  await page.screenshot({ path: `.artifacts/views-dialog-${info.project.name}.png`, fullPage: true });
+  await page.evaluate(() => scrollTo(0, 0));
+  await dialog(page).evaluate((node) => { node.scrollTop = 0; });
+  await page.screenshot({ path: `.artifacts/views-dialog-${info.project.name}.png` });
+  await page.locator("#confirm-view").scrollIntoViewIfNeeded();
+  await expect(page.locator("#confirm-view")).toBeInViewport();
+  await expect(dialog(page).getByRole("button", { name: "キャンセル", exact: true })).toBeInViewport();
+  await page.screenshot({ path: `.artifacts/views-dialog-actions-${info.project.name}.png` });
   await dialog(page).getByRole("button", { name: "一覧を保存", exact: true }).click();
   await expect(dialog(page)).not.toBeVisible();
   await expect(page.locator("#table-head th")).toHaveText(["完了", "名称", "操作"]);
@@ -96,7 +105,8 @@ test("save applied conditions and ordered columns, reopen, edit hidden fields, a
   await choose(page, view); await expect(page.locator("#table-head th")).toHaveText(["完了", "名称", "操作"]);
   await expect(page.getByLabel("レコードを検索", { exact: true })).toHaveValue("東京");
   await page.evaluate(() => scrollTo(0, 0));
-  await page.screenshot({ path: `.artifacts/views-${info.project.name}.png`, fullPage: true });
+  await page.screenshot({ path: `.artifacts/views-${info.project.name}.png` });
+  await page.screenshot({ path: `.artifacts/views-full-${info.project.name}.png`, fullPage: true });
   await choose(page, null); await expect(page.locator("#query-summary")).toHaveText("適用中：すべてのレコード");
   await expect(page.locator("#table-head th")).toHaveCount(7); await expect(page.locator("#page-number")).toHaveText("1 ページ");
   expect(errors).toEqual([]);
@@ -227,6 +237,16 @@ test("refreshing a deleted selected view retains a newer applied search and cont
   await expect(page.locator("#query-summary")).toHaveText("適用中：文字検索「Second」");
   await expect(page.getByRole("cell", { name: "Second", exact: true })).toBeVisible();
   await expect(page.locator("#record-count")).toHaveText("このページに 1 件");
+  await expect(picker(page)).toHaveValue(String(view.id));
+  await expect(picker(page).locator("option:checked")).toContainText("削除済み");
+  await expect(page.locator("#edit-view")).toBeDisabled();
+  await page.locator("#save-view").click(); await page.getByLabel("一覧名", { exact: true }).fill("Recovered");
+  await expect(page.locator("#view-query")).toHaveText("文字検索「Second」");
+  await page.locator("#confirm-view").click(); await expect(dialog(page)).not.toBeVisible();
+  const [recovered] = await catalog(request, app); expect(recovered.definition.query).toBe("Second");
+  expect(recovered.definition.columns).toEqual(["name"]);
+  await choose(page, null); await expect(page.locator("#record-count")).toHaveText("このページに 2 件");
+  await expect(page.locator("#search")).toHaveValue("");
 });
 
 test("refreshing a deleted selected view preserves a record dialog's draft and invoking focus", async ({ page, request }, info) => {

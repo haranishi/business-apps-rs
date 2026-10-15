@@ -208,7 +208,14 @@ impl Ui {
             return Ok(());
         };
         let mut definition = editor.definition.clone();
-        definition.name = value(&id("view-name")).trim().to_owned();
+        let name = value(&id("view-name"));
+        // Single-line inputs strip CR/LF from valid API-origin names. A column
+        // edit must preserve the original name when its display is unchanged.
+        definition.name = if name == definition.name.replace(['\r', '\n'], "") {
+            definition.name.clone()
+        } else {
+            name.trim().to_owned()
+        };
         definition.columns = all(&id("view-columns"), "input")
             .into_iter()
             .filter(checked)

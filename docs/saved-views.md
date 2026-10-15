@@ -39,8 +39,11 @@ Definitions persist; the current selection resets on app switches or a page relo
 Failed saves keep name/column drafts. Revision conflicts offer explicit reload, which replaces the draft only when requested.
 Pending writes/reloads lock controls and Escape; cancel returns focus to the invoking action.
 View-catalog failures have their own retry and do not block record editing or CSV.
+Catalog refresh never reapplies conditions or replaces drafts. A remotely deleted active view keeps its current display, marked as deleted.
+Choose the standard list to reset explicitly, or save the current conditions under a new name; editing a deleted definition is disabled.
 Hidden columns remain in record editors and the full-schema CSV; visibility does not restrict access to data.
 API-created CRLF/CR multiline conditions keep their exact value when an unchanged textarea is resubmitted.
+An API-origin name with internal CR/LF is retained when its single-line display is unchanged during a settings save.
 
 ## Stored-data upgrade and recovery
 
