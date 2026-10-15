@@ -42,9 +42,12 @@ impl Ui {
             state.cursors = vec![None];
             state.page = 0;
             state.query.clear();
+            state.filter = None;
             state.export_ready = false;
+            state.loading = true;
         }
         set_value(&id("search"), "");
+        self.reset_filter_controls()?;
         hidden(&id("welcome"), true);
         hidden(&id("app-workspace"), false);
         text("app-title", &app.name);
@@ -91,7 +94,7 @@ impl Ui {
         }
         if state.records.is_empty() {
             let row = child(&body, "tr", &[], None)?;
-            let message = if state.query.is_empty() {
+            let message = if state.query.is_empty() && state.filter.is_none() {
                 "レコードはまだありません。「レコードを追加」から登録しましょう。"
             } else {
                 "一致するレコードが見つかりませんでした。"
@@ -122,6 +125,7 @@ impl Ui {
             state.loading || !state.export_ready || state.exporting,
         );
         self.update_table_hint();
+        self.render_query_summary();
         Ok(())
     }
 
@@ -137,11 +141,11 @@ impl Ui {
             if let Some(Some(cursor)) = state.cursors.get(state.page) {
                 path.push_str(&format!("&before={cursor}"));
             }
-            let search = &state.query;
-            if !search.is_empty() {
-                path.push_str("&q=");
-                path.push_str(&String::from(js_sys::encode_uri_component(search)));
-            }
+            path.push('&');
+            path.push_str(&crate::filters::query_parameters(
+                &state.query,
+                state.filter.as_ref(),
+            ));
             state.request += 1;
             state.loading = true;
             state.export_ready = false;

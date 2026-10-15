@@ -7,7 +7,7 @@ A table reload (including app/search/page changes) discards an older pending exp
 
 ## Format and safety decisions
 
-- `GET /api/v1/apps/{app_id}/records.csv` accepts only optional `q`, with the same literal search as JSON listing.
+- `GET /api/v1/apps/{app_id}/records.csv` accepts optional `q` and [typed filter](record-filters.md), matching JSON listing.
 - Rows use descending record IDs; columns are ID, Revision, then current field labels in schema order.
 - UTF-8 BOM supports Japanese spreadsheet workflows; row endings are CRLF.
 - Every cell is quoted; embedded quotes are doubled; multiline content remains inside its cell.

@@ -34,6 +34,7 @@ Browser-side checks provide feedback; server/domain validation is authoritative 
 SQLite work runs on its dedicated worker rather than a Tokio runtime thread.
 The bounded queue serializes database operations in this preview.
 Listing uses an app-scoped cursor index; text search scans string values within an app.
+Optional typed exact/empty filters scan JSON cells and share selection semantics with CSV export.
 
 ## Data and compatibility
 

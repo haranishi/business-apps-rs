@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::{collections::HashSet, fmt};
 
+mod filters;
+pub use filters::{RecordFilter, validate_record_filter};
+
 pub type Values = Map<String, Value>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]

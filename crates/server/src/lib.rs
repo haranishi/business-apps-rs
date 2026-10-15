@@ -11,7 +11,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use business_apps_domain::{App, NewApp, Record, ValidationError, Values};
+use business_apps_domain::{App, NewApp, Record, RecordFilter, ValidationError, Values};
 use serde::Deserialize;
 use serde_json::json;
 use std::net::SocketAddr;
@@ -219,6 +219,7 @@ struct ListQuery {
     limit: Option<usize>,
     before: Option<i64>,
     q: Option<String>,
+    filter: Option<String>,
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -229,6 +230,16 @@ struct DeleteQuery {
 #[serde(deny_unknown_fields)]
 struct ExportQuery {
     q: Option<String>,
+    filter: Option<String>,
+}
+
+fn record_filter(raw: Option<String>) -> Result<Option<RecordFilter>, AppError> {
+    raw.map(|raw| {
+        serde_json::from_str(&raw).map_err(|_| {
+            AppError::Validation("Use a filter object with field and typed value.".into())
+        })
+    })
+    .transpose()
 }
 
 async fn list_apps(
@@ -273,7 +284,13 @@ async fn list_records(
 ) -> Result<Json<store::RecordPage>, AppError> {
     Ok(Json(
         store
-            .list_records(app_id, query.before, query.limit.unwrap_or(50), query.q)
+            .list_records_filtered(
+                app_id,
+                query.before,
+                query.limit.unwrap_or(50),
+                query.q,
+                record_filter(query.filter)?,
+            )
             .await?,
     ))
 }
@@ -282,7 +299,9 @@ async fn export_records(
     Path(app_id): Path<i64>,
     Query(query): Query<ExportQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    let csv = store.export_csv(app_id, query.q).await?;
+    let csv = store
+        .export_csv_filtered(app_id, query.q, record_filter(query.filter)?)
+        .await?;
     Ok((
         [
             ("content-type", "text/csv; charset=utf-8".to_owned()),

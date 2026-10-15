@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::AppError;
 use business_apps_domain::{
-    App, NewApp, Record, Values, validate_app, validate_app_update, validate_values,
+    App, NewApp, Record, RecordFilter, Values, validate_app, validate_app_update,
+    validate_record_filter, validate_values,
 };
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use serde::Serialize;
@@ -83,7 +84,18 @@ const RECORD_SELECTION: &str = "
     AND (?3 IS NULL OR EXISTS (
         SELECT 1 FROM json_each(records.values_json) AS entry
         WHERE entry.type = 'text' AND instr(lower(CAST(entry.value AS TEXT)), lower(?3)) > 0
-    )) ORDER BY id DESC LIMIT ?4
+    ))
+    AND (?5 IS NULL OR
+        (?6 = 'null' AND NOT EXISTS (
+            SELECT 1 FROM json_each(records.values_json) AS cell
+            WHERE cell.key = ?5 AND cell.type != 'null' AND NOT (cell.type = 'text' AND cell.value = '')
+        )) OR EXISTS (
+            SELECT 1 FROM json_each(records.values_json) AS cell
+            WHERE cell.key = ?5 AND cell.value = json_extract(?6, '$')
+            AND (cell.type = json_type(?6) OR
+                (cell.type IN ('integer', 'real') AND json_type(?6) IN ('integer', 'real')))
+        )
+    ) ORDER BY id DESC LIMIT ?4
 ";
 
 fn search_query(query: Option<String>) -> Result<Option<String>, AppError> {
@@ -93,6 +105,19 @@ fn search_query(query: Option<String>) -> Result<Option<String>, AppError> {
         ));
     }
     Ok(query.filter(|q| !q.is_empty()))
+}
+
+fn filter_parameters(
+    app: &App,
+    filter: Option<&RecordFilter>,
+) -> Result<(Option<String>, Option<String>), AppError> {
+    match filter {
+        None => Ok((None, None)),
+        Some(filter) => {
+            validate_record_filter(&app.fields, filter)?;
+            Ok((Some(filter.field.clone()), Some(filter.value.to_string())))
+        }
+    }
 }
 
 impl Store {
@@ -207,6 +232,18 @@ impl Store {
         limit: usize,
         query: Option<String>,
     ) -> Result<RecordPage, AppError> {
+        self.list_records_filtered(app_id, before, limit, query, None)
+            .await
+    }
+
+    pub async fn list_records_filtered(
+        &self,
+        app_id: i64,
+        before: Option<i64>,
+        limit: usize,
+        query: Option<String>,
+        filter: Option<RecordFilter>,
+    ) -> Result<RecordPage, AppError> {
         if !(1..=100).contains(&limit) || before.is_some_and(|id| id <= 0) {
             return Err(AppError::Validation(
                 "Use a limit of 1–100 and a positive cursor.".into(),
@@ -214,11 +251,19 @@ impl Store {
         }
         let query = search_query(query)?;
         self.call(move |connection| {
-            find_app(connection, app_id)?;
+            let app = find_app(connection, app_id)?;
+            let (field, value) = filter_parameters(&app, filter.as_ref())?;
             let mut statement = connection.prepare_cached(RECORD_SELECTION)?;
             let mut records = statement
                 .query_map(
-                    params![app_id, before.unwrap_or(i64::MAX), query, limit as i64 + 1],
+                    params![
+                        app_id,
+                        before.unwrap_or(i64::MAX),
+                        query,
+                        limit as i64 + 1,
+                        field,
+                        value
+                    ],
                     record_row,
                 )?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -240,10 +285,20 @@ impl Store {
     }
 
     pub async fn export_csv(&self, app_id: i64, query: Option<String>) -> Result<String, AppError> {
+        self.export_csv_filtered(app_id, query, None).await
+    }
+
+    pub async fn export_csv_filtered(
+        &self,
+        app_id: i64,
+        query: Option<String>,
+        filter: Option<RecordFilter>,
+    ) -> Result<String, AppError> {
         let query = search_query(query)?;
         self.call(move |connection| {
             let transaction = connection.transaction()?;
             let app = find_app(&transaction, app_id)?;
+            let (field, value) = filter_parameters(&app, filter.as_ref())?;
             let mut csv = crate::csv::Csv::new();
             let mut headers = vec![
                 serde_json::Value::String("ID".into()),
@@ -258,7 +313,14 @@ impl Store {
             {
                 let mut statement = transaction.prepare(RECORD_SELECTION)?;
                 let rows = statement.query_map(
-                    params![app_id, i64::MAX, query, crate::csv::MAX_ROWS as i64 + 1],
+                    params![
+                        app_id,
+                        i64::MAX,
+                        query,
+                        crate::csv::MAX_ROWS as i64 + 1,
+                        field,
+                        value
+                    ],
                     record_row,
                 )?;
                 for (index, row) in rows.enumerate() {

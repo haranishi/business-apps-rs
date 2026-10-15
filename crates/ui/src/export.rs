@@ -17,16 +17,17 @@ impl Ui {
             let Some(app) = &state.active else {
                 return Ok(());
             };
-            let context = (state.request, app.id, state.query.clone());
+            let context = (
+                state.request,
+                app.id,
+                crate::filters::query_parameters(&state.query, state.filter.as_ref()),
+            );
             state.exporting = true;
             context
         };
         disabled(&id("export-csv"), true);
         text("export-status", "CSVを準備中…");
-        let path = format!(
-            "/apps/{app_id}/records.csv?q={}",
-            String::from(js_sys::encode_uri_component(&query))
-        );
+        let path = format!("/apps/{app_id}/records.csv?{query}");
         let result = async {
             let response = api_response(&path, "GET", None).await?;
             let blob = JsFuture::from(response.blob()?)

@@ -10,6 +10,7 @@ The Rust UI in `crates/ui` owns browser layout and interactions; CSS is in `web/
 | Small-team operator | Create a tracker without coding | Choose text, multiline, number, checkbox, date, or single-choice fields |
 | Record editor | Save and find an entry | Required errors preserve the draft; saved values reopen correctly |
 | App owner | Take records into a spreadsheet | CSV includes all matching pages; errors allow retry without losing the workspace |
+| Record editor | Find work by a typed field | One exact/empty condition combines with text search, pages, and CSV |
 | Record editor | Edit an already-open entry | Stale saves preserve input and offer explicit reload |
 | App owner | Rename, reorder, or add a field | Old values stay intact; additions are optional; conflicting settings keep the draft |
 
@@ -78,6 +79,7 @@ flowchart LR
 - Render user content as plain text. Native date formatting follows the browser locale; textarea keeps line breaks.
 - CSV uses the last submitted search, including all pages; unsubmitted text never changes paging/export.
 - CSV shows pending/success/error feedback, locks duplicate downloads, and discards responses after a table reload.
+- [Field filters](record-filters.md) apply explicitly; a visible summary distinguishes fetched results from control drafts.
 - Late responses must not replace a newer app selection or editing draft; old-form edits must preserve unknown saved fields.
 
 [Rich-field contracts](../.agent-harness/contracts/rich-fields.md) and [schema-editing contracts](../.agent-harness/contracts/schema-editing.md) record the feature decisions.

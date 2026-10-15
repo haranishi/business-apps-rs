@@ -13,8 +13,8 @@ The server accepts only local Host values and same-origin browser requests.
 | POST | `/api/v1/apps` | Create an app schema |
 | GET | `/api/v1/apps/{app_id}` | Read the current schema and app revision |
 | PUT | `/api/v1/apps/{app_id}` | Safely replace schema presentation/add optional fields if app revision matches |
-| GET | `/api/v1/apps/{app_id}/records` | List records using `limit`, `before`, and optional `q` |
-| GET | `/api/v1/apps/{app_id}/records.csv` | Export complete matching records using optional `q`; see [CSV rules](csv.md) |
+| GET | `/api/v1/apps/{app_id}/records` | List records using `limit`, `before`, optional `q` and typed [filter](record-filters.md) |
+| GET | `/api/v1/apps/{app_id}/records.csv` | Export all matches using optional `q`/`filter`; see [CSV rules](csv.md) |
 | POST | `/api/v1/apps/{app_id}/records` | Create a validated record |
 | GET | `/api/v1/apps/{app_id}/records/{id}` | Read one record within its app |
 | PUT | `/api/v1/apps/{app_id}/records/{id}` | Replace values if `revision` matches |
