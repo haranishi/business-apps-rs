@@ -1,77 +1,83 @@
 # business-apps-rs
 
-[日本語](README.ja.md) · [Contribute](CONTRIBUTING.md) · [Design](docs/design.md) · [Roadmap](docs/roadmap.md)
+[日本語](README.ja.md) · [Contribute](CONTRIBUTING.md) · [Design a change](docs/development.md) · [Roadmap](docs/roadmap.md)
 
-Create a business app from typed fields, then manage its records in a browser.
-An independent Rust OSS project for local customer lists, inventory, and task trackers.
+Build customer lists, inventory apps, and task trackers from typed fields.
+Rust implements the browser layout and interactions, API, domain rules, and persistence.
+The browser UI compiles to WebAssembly; CSS and generated JavaScript glue are also delivered.
 
-**Status: local development preview.** Forms support safe optional additions and reordering; team authentication, permissions, and workflows are planned.
-This is an original implementation, independent of Cybozu and kintone. It does not implement kintone API compatibility.
+**Status: local development preview.** Team collaboration and supported deployment are future stages.
+This is an independent project, unaffiliated with Cybozu; kintone API compatibility is not implemented.
 
-## Try your first app
+![Task app with app navigation, search, form settings, and saved records](docs/assets/preview.png)
 
-Install Rust stable (minimum 1.88) and a C toolchain (Xcode Command Line Tools on macOS; GCC/Clang on Linux).
+The screenshot uses synthetic data. See [screen diagrams and the editor](docs/ui.md).
+
+## What you can build today
+
+| Area | Local preview |
+| --- | --- |
+| Fields | Text, multiline text, number, checkbox, date, and single choice |
+| Records | Create, read, search, edit, delete; SQLite persistence and revision conflict checks |
+| Form settings | Rename app/labels, reorder fields, add optional fields; existing types/required flags/choices stay fixed |
+| Planned | Team login, role-based permissions, audit history, views, import/export, workflows, packaged deployment |
+
+The [roadmap](docs/roadmap.md) separates these stages. Text search scans string values within one app.
+
+## Create your first customer list
+
+Install Rust stable (minimum 1.88) and a C toolchain: Xcode Command Line Tools on macOS or GCC/Clang on Linux.
+The target and CLI installation below are one-time setup; Node.js is only needed for browser tests.
 
 ```sh
 git clone https://github.com/haranishi/business-apps-rs.git
 cd business-apps-rs
-cargo run -p business-apps-server
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.129 --locked
+cargo xtask dev
 ```
 
-Open `http://127.0.0.1:8080`. Choose an app name and text, multiline, number, checkbox, date, or select fields, then add a record.
-Search your entries, edit them, or reopen the app to read the saved data.
-Use Form settings to rename labels, reorder fields, or add optional fields while keeping existing records.
-The preview only accepts loopback listeners and has no user/permission model; use synthetic data.
-SQLite data lives in `.data/business-apps.sqlite`, outside Git.
+1. Open `http://127.0.0.1:8080` and choose **アプリを作る**; name it `顧客管理`.
+2. Set two text fields: required `顧客名` and optional `連絡先`; choose **アプリを作成**.
+3. Choose **レコードを追加**, enter `架空商事` and `hello@example.invalid`, then **保存**.
+4. Search for `架空商事`, open **編集**, and save a change.
+5. Open **フォーム設定** to rename labels, reorder fields, or add an optional field.
 
-## How it fits together
+Restart the server to reopen saved records. The database is `.data/business-apps.sqlite`, ignored by Git.
+The preview accepts loopback connections only and has no authentication; use synthetic data.
+Existing fields cannot be removed; their keys, types, required flags, and choices stay fixed to preserve saved values.
 
-```mermaid
-flowchart LR
-  UI[Browser: app builder and records] --> API[Rust / Axum API]
-  API --> Rules[Typed domain validation]
-  API --> Queue[Bounded storage queue]
-  Queue --> Worker[SQLite worker thread]
-  Worker --> DB[(Durable SQLite WAL)]
-```
+## Build the server and browser UI
 
-The browser assets are embedded in one server binary. Running it requires no Node or frontend build.
-The domain layer stays independent of transport and storage; revision checks prevent stale edits from overwriting new changes.
-Record listing uses an app-scoped cursor index. Text search is a per-app scan of string values.
-Performance claims require the reproducible [benchmark and measured baseline](docs/performance.md), rather than assumptions about Rust.
-
-## Read the design or join in
-
-| You want to… | Start with |
+| Command | Result |
 | --- | --- |
-| Understand the boundaries and design process | [Design principles and structure](docs/design.md) |
-| See the screens and operation flow | [UI diagram and user stories](docs/ui.md) |
-| Call the API | [API v1 and examples](docs/api.md) |
+| `cargo xtask dev` | Build release WASM assets, then build and run the debug server |
+| `cargo xtask build` | Build release WASM assets and the release server |
+| `cargo xtask build-web` | Regenerate browser assets without building the server |
+
+The server embeds the assets into one binary. After generating them, `cargo run -p business-apps-server` also works.
+[The Rust UI guide](docs/rust-ui.md) explains `crates/ui`, generated `web/pkg`, CSS, and rebuilds.
+Python 3.10+ supports documentation and benchmark tooling; Node.js 22+ supports Playwright tests.
+
+## Understand the design or make a contribution
+
+| Goal | Start here |
+| --- | --- |
+| Design a feature and its acceptance checks | [Development steps](docs/development.md) |
+| Understand runtime and data boundaries | [Architecture](docs/design.md) and [API v1](docs/api.md) |
+| Understand screens and interactions | [UI stories and diagrams](docs/ui.md) |
 | Make a first contribution | [Contribution guide](CONTRIBUTING.md) |
-| Run tests, CI, or a benchmark | [Test environments](docs/testing.md) |
-| Work with a coding agent | [Harness](HARNESS.md) and [repository skill](.agents/skills/business-apps/SKILL.md) |
-| Understand licensing and source provenance | [Licensing](docs/licenses.md) |
+| Run native, WASM, and browser checks | [Testing](docs/testing.md) and [project harness](HARNESS.md) |
+| Evaluate speed | [Workloads and measured baseline](docs/performance.md) |
 
-Bug reproduction, documentation, translation, accessibility, and focused code fixes are welcome.
-There is no contributor registration requirement. Discuss new APIs, migrations, and major dependencies in an Issue first.
+Bug reproduction, documentation, translation, accessibility, tests, and focused fixes are welcome.
+Discuss new APIs, migrations, major dependencies, or team/network features in an Issue first.
+Performance claims need workload, build mode, machine, sample count, and measurements; Rust alone proves no speed advantage.
+CI configuration describes checks; each run and source revision provide the validation evidence.
 
-## Verify your change
+## License and data
 
-Development checks need Node.js 22+, Python 3.10+, and Rust stable.
-
-```sh
-scripts/check.sh
-npm ci
-npx playwright install chromium
-npm run test:e2e
-cargo deny check licenses bans sources
-```
-
-CI covers Rust on Linux/macOS, the minimum Rust version, dependency licenses, and browser flows at three widths.
-A CI configuration is not a verified run; current PR checks show the evidence for each revision.
-
-## License
-
-Original code, docs, and diagrams use [Apache-2.0](LICENSE); dependencies retain their own licenses.
-See [NOTICE](NOTICE), [licensing details](docs/licenses.md), and [security reporting](SECURITY.md).
+Original code, docs, diagrams, and screenshots use [Apache-2.0](LICENSE); dependencies retain their own licenses.
+See [NOTICE](NOTICE), [licensing and provenance](docs/licenses.md), and [private security reporting](SECURITY.md).
+Keep business databases, credentials, and local settings out of contributions; use synthetic examples.
 kintone is a registered trademark of Cybozu, Inc.; this project has no affiliation or endorsement.

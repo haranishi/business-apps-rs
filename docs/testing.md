@@ -1,43 +1,57 @@
-# Test environments and evidence
+# Check native Rust, WASM, and browser behavior
 
-Use Rust stable (minimum supported version: 1.88), Node.js 22+, and Python 3.10+ on Linux/macOS.
-Running the app itself needs only Rust and a browser; Node is used for development checks and browser tests.
+Use Rust stable (minimum 1.88), a C toolchain, and the WASM target/CLI from [Rust UI setup](rust-ui.md).
+Python 3.10+ supports docs/benchmarks; Node.js 22+ supports Playwright browser tests.
+The app build uses Rust tooling; Node.js is not part of its runtime or WASM build.
 
-## Local checks
+## Run the checks that cover the change
 
 ```sh
 scripts/check.sh
+cargo install cargo-deny --version 0.20.2 --locked
 cargo deny check licenses bans sources
 npm ci
 npx playwright install chromium
 npm run test:e2e
 ```
 
-Rust tests exercise app isolation, type errors, stale updates/deletes, concurrent edits, pagination, literal search, body limits, date/choice validation, format-1/2 upgrades, schema-edit restrictions, concurrent schema saves, and database reopening.
-Browser tests use synthetic data, an isolated temporary database, and a separate loopback port.
-Playwright starts and stops its own server; it does not attach to your daily workspace database.
-Three projects cover 390, 768, and 1440 px widths.
-Screenshots, traces, and reports go to `.artifacts/` and are ignored by Git.
+`scripts/check.sh` builds the release browser assets, checks formatting, runs native Clippy/tests, runs WASM Clippy, and checks documentation.
+For a documentation-only change, `python3 scripts/check_docs.py` checks local links and document constraints.
+Run affected checks during development, then record the complete checks required for the final change.
+Generated assets must be rebuilt before compiling the server; [build commands](rust-ui.md) preserve that order.
 
-## GitHub Actions
+## Exercise operations and saved data
 
-`CI` runs formatting/Clippy/tests on Linux and macOS, the minimum Rust version on Linux, documentation checks, dependency license/source checks, and Chromium flows on Linux.
-Actions are pinned to commit SHAs. PR jobs have read-only repository permissions and use no deployment secrets.
-Failed browser tests upload their synthetic traces/screenshots for inspection.
-This workflow does not merge PRs, deploy a service, or publish packages.
-A workflow file is not evidence of a successful run; record the run URL and exact head SHA.
-Branch protection is separate from CI and must be configured by a maintainer if desired.
+Rust tests cover isolation, validation, stale updates/deletes, pagination/search, body limits, schema edits, database upgrades, and reopening.
+WASM checks compile the browser target; a successful compilation does not establish correct interaction behavior.
+Browser regression tests cover the existing operations while application layout/events run in Rust WASM.
+Use create → save → search → edit → reopen, required-error recovery, competing revisions, keyboard focus, and pending locks.
+Include old-form edits after a schema addition and delayed responses while a newer draft is open.
 
-## Measure speed
+Playwright starts and stops a separate loopback server with synthetic data and an isolated temporary database.
+It does not attach to your daily workspace database. Projects cover 390, 768, and 1440 px widths.
+Screenshots, traces, and reports go to Git-ignored `.artifacts/`.
+Use [UI diagrams](ui.md) for the expected flow and the [project harness](../HARNESS.md) for independent review.
+
+## Separate CI configuration from a passing run
+
+CI covers native Rust, WASM, the minimum supported Rust version, documentation, dependency policy, and browser flows.
+Record the actual run URL, source SHA, platform/toolchain, results, and any skipped or unverified checks.
+A workflow file describes intended checks; it is not evidence that a particular revision passed.
+Failed browser jobs retain synthetic traces/screenshots for inspection.
+Branch protection and maintainer merge decisions are separate from CI; the checks do not publish or deploy the app.
+
+## Measure speed with a release build
 
 ```sh
-cargo build --release --locked -p business-apps-server
+cargo xtask build
 python3 scripts/benchmark.py --records 10000 --requests 500 --concurrency 8 --output .artifacts/benchmark.json
 ```
 
 The benchmark creates and removes its own synthetic SQLite database and server process.
-It records end-to-end HTTP latency for indexed record reads, first-page listing, no-match text scans, and writes.
-Results include build mode, machine, dataset size, concurrency, samples, p50/p95/p99, and throughput.
-Python client overhead and a single machine limit interpretation; it does not establish performance against another product.
-Text search scans per-app string values; compare realistic datasets before introducing an index or different storage backend.
-SQLite uses WAL with durable FULL synchronization; the benchmark does not disable durability.
+It measures end-to-end HTTP latency for indexed record reads, first-page listing, no-match text scans, and writes.
+Record build mode, machine, dataset size, concurrency, sample count, p50/p95/p99, and throughput.
+The Python client contributes overhead; HTTP results do not measure WASM download, browser rendering, or interaction latency.
+Compare the same workloads and conditions before claiming an improvement or a product comparison.
+Search scans per-app string values. SQLite WAL uses durable FULL synchronization during the benchmark.
+See [the measured baseline](performance.md) for recorded conditions and limits.

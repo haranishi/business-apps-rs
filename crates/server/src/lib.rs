@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+mod assets;
 pub mod store;
 
 use axum::{
@@ -6,7 +7,7 @@ use axum::{
     extract::{DefaultBodyLimit, Path, Query, Request, State},
     http::{HeaderValue, Method, StatusCode, Uri, uri::Authority},
     middleware::{self, Next},
-    response::{Html, IntoResponse, Response},
+    response::{IntoResponse, Response},
     routing::get,
 };
 use business_apps_domain::{App, NewApp, Record, ValidationError, Values};
@@ -86,19 +87,10 @@ pub fn local_address(input: &str) -> Result<SocketAddr, std::io::Error> {
 
 pub fn router(store: Store) -> Router {
     Router::new()
-        .route(
-            "/",
-            get(|| async { Html(include_str!("../../../web/index.html")) }),
-        )
-        .route(
-            "/app.js",
-            get(|| async {
-                (
-                    [("content-type", "text/javascript; charset=utf-8")],
-                    include_str!("../../../web/app.js"),
-                )
-            }),
-        )
+        .route("/", get(assets::index))
+        .route("/assets/start.js", get(assets::start))
+        .route("/assets/business_apps_ui.js", get(assets::glue))
+        .route("/assets/business_apps_ui_bg.wasm", get(assets::wasm))
         .route(
             "/style.css",
             get(|| async {
@@ -182,7 +174,7 @@ async fn local_guard(request: Request, next: Next) -> Response {
     for (key, value) in [
         (
             "content-security-policy",
-            "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+            "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
         ),
         ("x-content-type-options", "nosniff"),
         ("referrer-policy", "no-referrer"),

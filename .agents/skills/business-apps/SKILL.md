@@ -17,6 +17,8 @@ For HTTP changes read [API v1](../../../docs/api.md); for screens read [UI stori
 - Compare app revisions on schema updates; keep existing keys/types/required/options and allow only optional additions.
 - Keep the local preview's loopback, Host, Origin, and mutation-header protections.
 - Render records and field labels as text; retain drafts when a save fails.
+- Write browser layout/behavior in `crates/ui`, using shared domain types and bounded event listeners.
+- Generate assets with `cargo xtask build-web`; keep generated JS/WASM outside Git.
 
 ## Choose evidence by changed behavior
 
@@ -27,7 +29,7 @@ Search is a per-app scan of string values; do not describe it as indexed full-te
 
 ## Prepare a contribution
 
-Run `scripts/check.sh`, relevant browser tests, and dependency license checks.
+Run `scripts/check.sh` (native and WASM), relevant browser tests, and dependency license checks including wasm32.
 Update the contract document/diagram with public behavior changes.
 Keep a PR focused on one outcome and explain remaining limitations.
 This skill does not authorize pushes, merges, releases, or changes outside the repository.

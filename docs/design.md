@@ -1,40 +1,48 @@
-# Design: small core, durable data, measured speed
+# Design: Rust application logic, durable local data
 
 An app is a schema owned by its creator; a record is one typed entry in that app.
-The first use case is a small local customer, inventory, or task tracker.
+The first use case is a local customer list, inventory, or task tracker.
+Follow [the development steps](development.md) when proposing a change.
 
-## Principles
+## Principles and tradeoffs
 
-- **Data integrity first.** Validate types at the boundary and use optimistic revisions to prevent lost updates.
-- **Small deployment.** Ship one Rust process with embedded static assets and SQLite; no frontend build is required to run it.
-- **Explicit boundaries.** Domain rules know neither HTTP nor storage. Transport translates errors; storage controls persistence.
-- **Measure before optimizing.** State the workload and tail latency. Rust alone does not prove that an application is fast.
-- **Readable contributions.** Favor ordinary Rust and a small number of modules over a plugin framework or custom language.
+- **Preserve saved work.** Validate at the server boundary and compare revisions before writes.
+- **Use Rust across application logic.** Browser layout/events, API, domain rules, and storage use Rust.
+- **Keep browser delivery explicit.** WASM uses generated JavaScript glue and CSS; the server embeds the built assets.
+- **Keep rules independent.** Domain rules do not depend on HTTP, DOM, or SQLite.
+- **Measure speed.** Workload and tail latency justify optimization; the language alone does not.
 
-## Runtime structure
+The UI uses direct `wasm-bindgen`/`web-sys` DOM bindings to retain native controls and the existing screen flow.
+This keeps the current UI small, while requiring explicit management of events, focus, pending requests, and stale responses.
+A frontend framework or plugin system needs its own user benefit and maintenance case before adoption.
+
+## Runtime boundaries
 
 ```mermaid
 flowchart LR
-  Browser[Browser UI] -->|same-origin JSON| HTTP[Axum routes]
-  HTTP --> Domain[Typed schemas and validation]
-  HTTP -->|bounded queue| Worker[Dedicated SQLite worker]
-  Worker -->|prepared SQL| DB[(SQLite WAL)]
-  HTTP --> Assets[Embedded HTML / CSS / JS]
+  UI[Browser: Rust UI in WASM] -->|same-origin JSON| HTTP[Rust Axum API]
+  HTTP --> Domain[Typed domain validation]
+  HTTP -->|bounded queue| Worker[SQLite worker thread]
+  Worker -->|parameterized SQL| DB[(SQLite WAL)]
+  HTTP --> Assets[Embedded HTML, CSS, generated JS and WASM]
+  Assets --> UI
 ```
 
-`domain` depends only on Serde. `server` depends on `domain`, Axum, Tokio, and rusqlite.
-The SQLite connection lives on one dedicated OS thread, so database work cannot block async HTTP tasks.
-The queue has a fixed capacity; database operations are serialized in this preview.
-An index on `(app_id, id DESC)` supports app-scoped cursor pagination without OFFSET.
-Text search scans string values within an app; it is not a full-text index.
+`crates/ui` owns layout, view state, and interactions; `web/style.css` owns styling.
+Generated `web/pkg` files are build outputs. [Rust UI builds](rust-ui.md) explain how they enter the server binary.
+Browser-side checks provide feedback; server/domain validation is authoritative for persisted data.
+SQLite work runs on its dedicated worker rather than a Tokio runtime thread.
+The bounded queue serializes database operations in this preview.
+Listing uses an app-scoped cursor index; text search scans string values within an app.
 
-## Data model
+## Data and compatibility
 
 ```mermaid
 erDiagram
   APP ||--o{ RECORD : owns
   APP {
     integer id PK
+    integer revision
     text name
     text fields_json
   }
@@ -46,16 +54,17 @@ erDiagram
   }
 ```
 
-Schema creation and record validation occur in Rust; SQLite enforces the app foreign key.
-Updates and deletes compare the submitted revision inside the database operation.
-App schemas use their own optimistic revision; only label/name/order changes and optional additions are allowed.
-[Schema-editing rules](schema-editing.md) preserve every existing key, type, required flag, and option list.
+Apps and records compare their own revisions when saving; SQLite enforces the app foreign key.
+Stable field keys preserve values when names or order change.
+Only safe label/name/order changes and optional field additions are accepted; existing types, required flags, choices, and fields stay intact.
+See [schema-editing rules](schema-editing.md) for these invariants and upgrade behavior.
 
-## Adding a feature
+The Rust UI transition retains API v1 and SQLite format 3; it does not require a data-format migration.
+A browser implementation change still needs the existing create/save/search/edit/reopen and conflict flows to remain usable.
+Changing API or saved-data contracts requires an explicit compatibility decision and the corresponding tests.
 
-1. Give an example of the user's task and the expected result.
-2. Decide which contract changes: typed values, API, saved data, or browser operation.
-3. Implement the smallest vertical slice and its failure-case tests.
-4. Update the relevant diagram/API example, run checks, and open a focused PR.
+## Where to design the next change
 
-Read [the UI contract](ui.md), [HTTP API](api.md), and [roadmap](roadmap.md) for the next boundaries.
+[Development steps](development.md) turn a user task into acceptance criteria, boundary decisions, and evidence.
+[UI stories](ui.md), [API v1](api.md), and the [roadmap](roadmap.md) define the relevant public contracts.
+Preserve input drafts, existing records, app isolation, and revision checks while adding the smallest useful behavior.

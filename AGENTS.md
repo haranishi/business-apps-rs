@@ -7,6 +7,8 @@ Read `HARNESS.md`, `docs/design.md`, and the relevant API/UI document before cha
 - Preserve app isolation and revision checks on every record mutation.
 - Bind only to loopback during this preview. Network access requires a separate authentication design.
 - Use parameterized SQL and render user content with DOM text APIs.
+- Author UI layout/behavior in `crates/ui`; keep generated JS/WASM out of Git and build with `cargo xtask build-web`.
+- Keep listener lifetimes bounded, release state borrows before await, and preserve stale-response/draft guards.
 - Run `scripts/check.sh` and the affected browser tests before reporting completion.
 - Changes to persisted data require a migration and a reopen test.
 - Record performance with workload, build mode, machine, and sample count.
