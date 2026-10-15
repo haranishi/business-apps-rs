@@ -1,9 +1,11 @@
 name: CI
 on:
   push:
-    branches: [main, 'feat/**']
+    branches: [main]
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * 1'
 permissions:
   contents: read
 concurrency:
@@ -59,7 +61,7 @@ jobs:
       - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2
         with:
           tool: cargo-deny@0.20.2
-      - run: cargo deny --locked check licenses bans sources
+      - run: cargo deny --locked check advisories licenses bans sources
   browser:
     name: Chromium user flows
     runs-on: ubuntu-latest
@@ -79,10 +81,14 @@ jobs:
       - run: cargo xtask build-web
       - run: cargo build --locked -p business-apps-server
       - run: npm ci
+      - run: npm audit --audit-level=high
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: failure()
+        if: ${{ !cancelled() }}
         with:
           name: browser-evidence
           path: .artifacts/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
