@@ -36,8 +36,13 @@ impl Ui {
             Ok::<_, ApiError>(blob)
         }
         .await;
-        self.state.borrow_mut().exporting = false;
-        self.render_records()?;
+        {
+            let mut state = self.state.borrow_mut();
+            state.exporting = false;
+            // Keep the table's existing buttons alive: an open record dialog
+            // may need its invoking button when native focus is restored.
+            disabled(&id("export-csv"), state.loading || !state.export_ready);
+        }
         // A page/search/app reload supersedes an export, including its feedback.
         if request != self.state.borrow().request {
             return Ok(());

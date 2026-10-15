@@ -43,6 +43,7 @@ test("CSV exports every matching page using the applied search and preserves the
   await expect(page.locator("#page-number")).toHaveText("2 ページ");
   await expect(page.getByLabel("レコードを検索", { exact: true })).toHaveValue("大阪");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBeTruthy();
+  await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: `.artifacts/csv-${info.project.name}.png`, fullPage: true });
   await page.getByRole("button", { name: "クリア", exact: true }).click();
   await expect(page.locator("#page-number")).toHaveText("1 ページ");
