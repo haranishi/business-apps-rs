@@ -36,3 +36,10 @@ The Rust server currently serializes database work on one bounded worker; queuei
 The largest measured cost is per-app text scanning. Typed query indexes or full-text search should be evaluated with realistic filters and update workloads.
 Exact substring semantics, Unicode handling, app isolation, and durable writes must remain explicit when changing that path.
 Use before/after workloads and query plans rather than replacing SQLite solely because of this baseline.
+
+## Follow-up runs
+
+The same local workload was repeated after [rich fields](benchmarks/rich-fields.json) and [safe form editing](benchmarks/schema-editing.json).
+For the schema-editing API source `8c1ba55`, p95 was 1.230 ms for reads, 1.420 ms for 30-record pages, 26.455 ms for no-match text scans, and 2.096 ms for writes.
+The raw files record timestamps, conditions, source revisions, and full percentiles.
+Run-to-run differences do not establish an optimization or regression; these changes add functionality rather than claim a speedup.

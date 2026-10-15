@@ -53,11 +53,15 @@ User text is rendered with `textContent`; it never becomes executable HTML.
 
 ## Current preview
 
-These screenshots use synthetic customer/contact data.
+These screenshots use synthetic task data.
 
-![Customer records in the current desktop preview](assets/preview.png)
+![Task records in the current desktop preview](assets/preview.png)
 
 ![Typed fields in the app builder](assets/builder.png)
+
+![Date, choice, and multiline record inputs](assets/record-editor.png)
+
+![Safe form settings with locked existing field types](assets/form-settings.png)
 
 The builder supports date, single-choice, and multiline fields alongside text, number, and checkbox.
 Choosing a select field reveals one option per line; the editor uses native date/select controls and a plain textarea.
