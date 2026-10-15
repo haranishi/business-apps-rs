@@ -9,8 +9,9 @@ The app build uses Rust tooling; Node.js is not part of its runtime or WASM buil
 ```sh
 scripts/check.sh
 cargo install cargo-deny --version 0.20.2 --locked
-cargo deny check licenses bans sources
+cargo deny --locked check advisories licenses bans sources
 npm ci
+npm audit --audit-level=high
 npx playwright install chromium
 npm run test:e2e
 ```
@@ -38,7 +39,10 @@ Use [UI diagrams](ui.md) for the expected flow and the [project harness](../HARN
 CI covers native Rust, WASM, the minimum supported Rust version, documentation, dependency policy, and browser flows.
 Record the actual run URL, source SHA, platform/toolchain, results, and any skipped or unverified checks.
 A workflow file describes intended checks; it is not evidence that a particular revision passed.
-Failed browser jobs retain synthetic traces/screenshots for inspection.
+Every completed browser job retains synthetic reports/screenshots for seven days; failures also retain traces.
+CI checks Rust advisories and high/critical npm advisories, alongside dependency licenses and sources.
+The weekly run detects newly published advisories even when no source changes are pushed.
+PRs run once per update; pushes to main verify the merged result.
 Branch protection and maintainer merge decisions are separate from CI; the checks do not publish or deploy the app.
 
 ## Measure speed with a release build
