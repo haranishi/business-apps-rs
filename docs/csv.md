@@ -18,6 +18,8 @@ A table reload (including app/search/page changes) discards an older pending exp
 This format is for spreadsheets. Formula protection changes some strings, and empty/null/missing values are indistinguishable.
 It is not a lossless database backup or a promise of spreadsheet round-trip fidelity. CSV import is not implemented.
 Spreadsheet applications may interpret CSV differently; use their text import options when exact display matters.
+Saving and reopening a CSV in a spreadsheet can remove protective escaping and reactivate formulas.
+The mitigation applies to the exported bytes, not later spreadsheet transformations; see [OWASP's CSV guidance](https://community.owasp.org/attacks/CSV_Injection).
 
 ## Completeness, limits, and privacy
 

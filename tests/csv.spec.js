@@ -85,3 +85,21 @@ test("pending CSV locks duplicate requests and discards a response after app sel
   expect(await unexpectedDownload).toBeFalsy();
   await expect(page.locator("#export-status")).toHaveText("");
 });
+
+test("CSV completion preserves a record draft and returns focus to its invoking edit button", async ({ page, request }, info) => {
+  const app = await seed(request, `CSV focus ${info.project.name}`);
+  await page.goto("/");
+  let release, arrive;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const arrival = new Promise((resolve) => { arrive = resolve; });
+  await page.route(`**/api/v1/apps/${app.id}/records.csv?*`, async (route) => { arrive(); await gate; await route.continue(); });
+  const downloading = page.waitForEvent("download");
+  await page.getByRole("button", { name: "CSVを出力", exact: true }).click(); await arrival;
+  const invoking = page.getByRole("button", { name: /^レコード.*を編集$/ });
+  await invoking.click();
+  await page.getByLabel("名称", { exact: true }).fill("Unsaved during export");
+  release(); await contents(await downloading);
+  await expect(page.getByLabel("名称", { exact: true })).toHaveValue("Unsaved during export");
+  await page.keyboard.press("Escape");
+  await expect(invoking).toBeFocused();
+});
