@@ -1,0 +1,47 @@
+{
+  "timestamp_utc": "2026-10-14T16:12:50.415414+00:00",
+  "build": "release",
+  "machine": {
+    "os": "Darwin",
+    "architecture": "arm64",
+    "logical_cpus": 14,
+    "cpu": "Apple M4 Pro"
+  },
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "initial_records": 10000,
+  "concurrency": 8,
+  "sqlite": "WAL / FULL synchronous",
+  "database_storage": "project .artifacts directory; SSD-backed when the project resides on SSD",
+  "scope": "end-to-end localhost HTTP, including Python client overhead; text search scans string values",
+  "workloads": {
+    "record_read": {
+      "samples": 500,
+      "p50_ms": 0.40708298911340535,
+      "p95_ms": 0.9304999985033646,
+      "p99_ms": 1.3917499891249463,
+      "requests_per_second": 16366.656573802384
+    },
+    "first_page_30": {
+      "samples": 500,
+      "p50_ms": 0.5068750033387914,
+      "p95_ms": 1.3729170022998005,
+      "p99_ms": 1.7737919988576323,
+      "requests_per_second": 12636.287733373816
+    },
+    "text_scan_no_match": {
+      "samples": 500,
+      "p50_ms": 25.62374999979511,
+      "p95_ms": 27.12374999828171,
+      "p99_ms": 37.04500000458211,
+      "requests_per_second": 307.1988989999177
+    },
+    "record_write": {
+      "samples": 500,
+      "p50_ms": 0.7258749974425882,
+      "p95_ms": 3.2771249971119687,
+      "p99_ms": 10.277499997755513,
+      "requests_per_second": 6000.029976280225
+    }
+  },
+  "source_revision": "32418a44315d791e9a63813e89c47bcc15a3c1e1"
+}

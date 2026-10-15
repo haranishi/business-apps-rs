@@ -1,0 +1,15 @@
+[graph]
+all-features = true
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]
+
+[licenses]
+allow = ["Apache-2.0", "MIT", "BSD-3-Clause", "Unicode-3.0", "Zlib"]
+confidence-threshold = 0.93
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
