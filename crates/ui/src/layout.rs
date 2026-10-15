@@ -188,6 +188,30 @@ fn workspace(main: &web_sys::Element) -> Result {
         &[("id", "clear-search"), ("type", "button")],
         Some("クリア"),
     )?;
+    let export = child(&workspace, "div", &[("class", "export-tools")], None)?;
+    child(
+        &export,
+        "button",
+        &[("id", "export-csv"), ("disabled", "")],
+        Some("CSVを出力"),
+    )?;
+    child(
+        &export,
+        "span",
+        &[("class", "muted")],
+        Some("検索結果を全ページ出力（最大10,000件・16 MiB）"),
+    )?;
+    child(
+        &workspace,
+        "p",
+        &[
+            ("id", "export-status"),
+            ("class", "status"),
+            ("role", "status"),
+            ("aria-live", "polite"),
+        ],
+        None,
+    )?;
     child(
         &workspace,
         "p",

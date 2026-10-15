@@ -18,6 +18,9 @@ pub struct State {
     pub page: usize,
     pub request: u64,
     pub loading: bool,
+    pub query: String,
+    pub export_ready: bool,
+    pub exporting: bool,
     pub editing_record: Option<Record>,
     pub editing_app: Option<App>,
     pub app_form_request: u64,
@@ -221,6 +224,7 @@ impl Ui {
             "app-form" => self.save_app().await,
             "record-form" => self.save_record().await,
             "search-form" => {
+                self.state.borrow_mut().query = value(&id("search")).trim().to_owned();
                 self.reset_paging();
                 self.load_records().await.map(|_| ())
             }
@@ -245,8 +249,10 @@ impl Ui {
             "reload-app" => self.reload_app().await,
             "reload-record" => self.reload_record().await,
             "delete-record" => self.delete_record().await,
+            "export-csv" => self.export_csv().await,
             "clear-search" => {
                 set_value(&id("search"), "");
+                self.state.borrow_mut().query.clear();
                 self.reset_paging();
                 self.load_records().await.map(|_| ())
             }
@@ -343,6 +349,31 @@ pub async fn api<T: DeserializeOwned>(
     method: &str,
     body: Option<Value>,
 ) -> std::result::Result<T, ApiError> {
+    let response = api_response(path, method, body).await?;
+    let status = response.status();
+    let raw = JsFuture::from(response.text()?)
+        .await?
+        .as_string()
+        .unwrap_or_default();
+    let data = if status == 204 {
+        Value::Null
+    } else {
+        serde_json::from_str(&raw).map_err(|_| ApiError {
+            status,
+            message: "サーバーからの応答を読み込めませんでした。".into(),
+        })?
+    };
+    serde_json::from_value(data).map_err(|_| ApiError {
+        status,
+        message: "サーバーからの応答を読み込めませんでした。".into(),
+    })
+}
+
+pub async fn api_response(
+    path: &str,
+    method: &str,
+    body: Option<Value>,
+) -> std::result::Result<Response, ApiError> {
     let options = RequestInit::new();
     options.set_method(method);
     let headers = web_sys::Headers::new()?;
@@ -362,12 +393,12 @@ pub async fn api<T: DeserializeOwned>(
     .await?
     .dyn_into::<Response>()?;
     let status = response.status();
-    let raw = JsFuture::from(response.text()?)
-        .await?
-        .as_string()
-        .unwrap_or_default();
-    let data: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
     if !response.ok() {
+        let raw = JsFuture::from(response.text()?)
+            .await?
+            .as_string()
+            .unwrap_or_default();
+        let data: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
         let detail = data.pointer("/error/message").and_then(Value::as_str);
         let validation = detail.map(|message| {
             if message.starts_with("Select fields need") {
@@ -381,6 +412,9 @@ pub async fn api<T: DeserializeOwned>(
                 "ほかの変更が保存されています。最新版を読み込んでから、もう一度編集してください。"
             }
             404 => "このレコードまたはアプリは見つかりません。",
+            413 if data.pointer("/error/code").and_then(Value::as_str) == Some("export_limit") => {
+                "CSVは最大10,000件・16 MiBまでです。検索で絞り込んでから再試行してください。"
+            }
             500.. => "保存先に接続できません。少し待って再試行してください。",
             _ => validation.unwrap_or("入力内容を確認して再試行してください。"),
         };
@@ -389,10 +423,7 @@ pub async fn api<T: DeserializeOwned>(
             message: message.into(),
         });
     }
-    serde_json::from_value(data).map_err(|_| ApiError {
-        status,
-        message: "サーバーからの応答を読み込めませんでした。".into(),
-    })
+    Ok(response)
 }
 
 #[derive(Deserialize)]

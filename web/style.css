@@ -58,3 +58,6 @@ textarea { resize: vertical; min-height: 88px; max-width: 100%; }
 .field-actions { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; }
 .field-actions .remove { margin-left: auto; min-width: 42px; }
 .field-actions button { font-size: 12px; }
+/* Applied-search exports keep their scope and progress visible at every width. */
+.export-tools { display: flex; align-items: center; flex-wrap: wrap; gap: .75rem; margin: 1rem 0 .25rem; }
+.export-tools .muted { flex: 1 1 15rem; }

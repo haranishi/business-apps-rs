@@ -76,6 +76,25 @@ fn find_record(connection: &Connection, app_id: i64, id: i64) -> Result<Record, 
         .ok_or(AppError::NotFound)
 }
 
+// Both paged listing and complete export use literal per-app text matching.
+const RECORD_SELECTION: &str = "
+    SELECT id, app_id, revision, values_json FROM records
+    WHERE app_id = ?1 AND id < ?2
+    AND (?3 IS NULL OR EXISTS (
+        SELECT 1 FROM json_each(records.values_json) AS entry
+        WHERE entry.type = 'text' AND instr(lower(CAST(entry.value AS TEXT)), lower(?3)) > 0
+    )) ORDER BY id DESC LIMIT ?4
+";
+
+fn search_query(query: Option<String>) -> Result<Option<String>, AppError> {
+    if query.as_ref().is_some_and(|q| q.chars().count() > 128) {
+        return Err(AppError::Validation(
+            "Search text exceeds 128 characters.".into(),
+        ));
+    }
+    Ok(query.filter(|q| !q.is_empty()))
+}
+
 impl Store {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, AppError> {
         let mut connection = Connection::open(path)?;
@@ -193,29 +212,78 @@ impl Store {
                 "Use a limit of 1–100 and a positive cursor.".into(),
             ));
         }
-        if query.as_ref().is_some_and(|q| q.chars().count() > 128) {
-            return Err(AppError::Validation(
-                "Search text exceeds 128 characters.".into(),
-            ));
-        }
-        let query = query.filter(|q| !q.is_empty());
+        let query = search_query(query)?;
         self.call(move |connection| {
             find_app(connection, app_id)?;
-            let mut statement = connection.prepare_cached("
-                SELECT id, app_id, revision, values_json FROM records
-                WHERE app_id = ?1 AND id < ?2
-                AND (?3 IS NULL OR EXISTS (
-                    SELECT 1 FROM json_each(records.values_json) AS entry
-                    WHERE entry.type = 'text' AND instr(lower(CAST(entry.value AS TEXT)), lower(?3)) > 0
-                )) ORDER BY id DESC LIMIT ?4
-            ")?;
-            let mut records = statement.query_map(params![app_id, before.unwrap_or(i64::MAX), query, limit as i64 + 1], record_row)?
+            let mut statement = connection.prepare_cached(RECORD_SELECTION)?;
+            let mut records = statement
+                .query_map(
+                    params![app_id, before.unwrap_or(i64::MAX), query, limit as i64 + 1],
+                    record_row,
+                )?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             let has_more = records.len() > limit;
-            if has_more { records.pop(); }
-            let next_cursor = if has_more { records.last().map(|record| record.id) } else { None };
-            Ok(RecordPage { records, next_cursor })
-        }).await
+            if has_more {
+                records.pop();
+            }
+            let next_cursor = if has_more {
+                records.last().map(|record| record.id)
+            } else {
+                None
+            };
+            Ok(RecordPage {
+                records,
+                next_cursor,
+            })
+        })
+        .await
+    }
+
+    pub async fn export_csv(&self, app_id: i64, query: Option<String>) -> Result<String, AppError> {
+        let query = search_query(query)?;
+        self.call(move |connection| {
+            let transaction = connection.transaction()?;
+            let app = find_app(&transaction, app_id)?;
+            let mut csv = crate::csv::Csv::new();
+            let mut headers = vec![
+                serde_json::Value::String("ID".into()),
+                serde_json::Value::String("Revision".into()),
+            ];
+            headers.extend(
+                app.fields
+                    .iter()
+                    .map(|field| serde_json::Value::String(field.label.clone())),
+            );
+            csv.row(&headers)?;
+            {
+                let mut statement = transaction.prepare(RECORD_SELECTION)?;
+                let rows = statement.query_map(
+                    params![app_id, i64::MAX, query, crate::csv::MAX_ROWS as i64 + 1],
+                    record_row,
+                )?;
+                for (index, row) in rows.enumerate() {
+                    if index == crate::csv::MAX_ROWS {
+                        return Err(AppError::ExportLimit);
+                    }
+                    let record = row?;
+                    let id = serde_json::Value::from(record.id);
+                    let revision = serde_json::Value::from(record.revision);
+                    csv.row(
+                        [&id, &revision]
+                            .into_iter()
+                            .chain(app.fields.iter().map(|field| {
+                                record
+                                    .values
+                                    .get(&field.key)
+                                    .unwrap_or(&serde_json::Value::Null)
+                            })),
+                    )?;
+                }
+            }
+            transaction.commit()?;
+            Ok(csv.finish())
+        })
+        .await
     }
 
     pub async fn update_record(

@@ -19,8 +19,9 @@ The screenshot uses synthetic data. See [screen diagrams and the editor](docs/ui
 | --- | --- |
 | Fields | Text, multiline text, number, checkbox, date, and single choice |
 | Records | Create, read, search, edit, delete; SQLite persistence and revision conflict checks |
+| Export | [Spreadsheet-oriented CSV](docs/csv.md) of all matching pages, with formula protection and explicit size limits |
 | Form settings | Rename app/labels, reorder fields, add optional fields; existing types/required flags/choices stay fixed |
-| Planned | Team login, role-based permissions, audit history, views, import/export, workflows, packaged deployment |
+| Planned | Team login, role-based permissions, audit history, views, import, workflows, packaged deployment |
 
 The [roadmap](docs/roadmap.md) separates these stages. Text search scans string values within one app.
 
