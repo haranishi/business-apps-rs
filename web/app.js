@@ -35,9 +35,10 @@ async function api(path, method = "GET", body) {
     const text = await response.text();
     let detail;
     try { detail = JSON.parse(text).error; } catch { /* Standard extractor rejection. */ }
+    const validationMessage = detail?.message?.startsWith("Select fields need") ? "選択肢は1〜50件、1件80文字以内で、重複しないように入力してください。" : detail?.message;
     const message = response.status === 409 ? "ほかの変更が保存されています。最新版を読み込んでから、もう一度編集してください。" :
       response.status === 404 ? "このレコードまたはアプリは見つかりません。" :
-      response.status >= 500 ? "保存先に接続できません。少し待って再試行してください。" : detail?.message || "入力内容を確認して再試行してください。";
+      response.status >= 500 ? "保存先に接続できません。少し待って再試行してください。" : validationMessage || "入力内容を確認して再試行してください。";
     const error = new Error(message);
     error.status = response.status;
     throw error;
@@ -144,7 +145,7 @@ function addField(label = "", kind = "text", required = false, options = []) {
   const remove = element("button", "×", "remove"); remove.type = "button"; remove.setAttribute("aria-label", "項目を削除");
   remove.addEventListener("click", () => { row.remove(); refreshBuilder(); });
   const choicesLabel = element("label", "選択肢（1行に1つ）", "field-options-label");
-  const choices = element("textarea"); choices.className = "field-options"; choices.rows = 3; choices.maxLength = 4096;
+  const choices = element("textarea"); choices.className = "field-options"; choices.rows = 3; choices.maxLength = 8049;
   choices.value = options.join("\n"); choices.placeholder = "未対応\n対応中\n完了"; choicesLabel.append(choices);
   const updateChoices = () => { choicesLabel.hidden = select.value !== "select"; choices.required = !choicesLabel.hidden; choices.disabled = choicesLabel.hidden; };
   select.addEventListener("change", updateChoices); updateChoices();
@@ -185,7 +186,7 @@ function openRecord(record = null) {
       if (field.kind === "select") {
         const empty = element("option", "選択してください"); empty.value = ""; input.append(empty);
         for (const option of field.options) { const choice = element("option", option); choice.value = option; input.append(choice); }
-      } else if (field.kind === "textarea") { input.rows = 5; input.maxLength = 4000; }
+      } else if (field.kind === "textarea") { input.rows = 5; input.maxLength = 8000; }
       else {
         input.type = field.kind === "number" ? "number" : field.kind === "date" ? "date" : "text";
         if (field.kind === "number") { input.step = "any"; input.min = String(-Number.MAX_SAFE_INTEGER); input.max = String(Number.MAX_SAFE_INTEGER); }
@@ -206,6 +207,10 @@ function openRecord(record = null) {
 function recordValues() {
   const values = Object.create(null);
   for (const input of $("record-fields").querySelectorAll("input, select, textarea")) {
+    const original = editingRecord && Object.hasOwn(editingRecord.values, input.dataset.key) ? editingRecord.values[input.dataset.key] : null;
+    if (input.dataset.kind === "textarea" && typeof original === "string" && input.value === original.replace(/\r\n?/g, "\n")) {
+      values[input.dataset.key] = original; continue;
+    }
     values[input.dataset.key] = input.dataset.kind === "boolean" ? input.checked :
       input.dataset.kind === "number" ? (input.value === "" ? null : Number(input.value)) :
       ["date", "select"].includes(input.dataset.kind) && input.value === "" ? null : input.value;

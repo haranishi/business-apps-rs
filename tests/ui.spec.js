@@ -176,7 +176,7 @@ test("date, select and multiline fields preserve typed values and lock during sa
   const options = builder.getByLabel("選択肢（1行に1つ）", { exact: true }).last();
   await options.fill("未対応\n未対応");
   await builder.getByRole("button", { name: "アプリを作成", exact: true }).click();
-  await expect(builder.locator("#app-error")).toContainText("distinct");
+  await expect(builder.locator("#app-error")).toContainText("重複しないように");
   await expect(builder.getByLabel("アプリ名", { exact: true })).toHaveValue(`Tasks ${info.project.name}`);
   await options.fill("未対応\n完了\n<img src=x>");
   await noHorizontalOverflow(page);
@@ -217,4 +217,34 @@ test("date, select and multiline fields preserve typed values and lock during sa
   const apps = await (await request.get("/api/v1/apps")).json();
   const saved = await (await request.get(`/api/v1/apps/${apps[0].id}/records`)).json();
   expect(saved.records[0].values).toEqual({ field_1: "Quarterly report", field_2: note, field_3: "2024-02-29", field_4: "未対応" });
+});
+
+
+test("full Unicode choice lists and untouched API line endings survive form edits", async ({ page, request }, info) => {
+  await page.goto("/"); await page.locator("#create-app").click();
+  const builder = page.locator("#app-dialog");
+  await builder.getByLabel("アプリ名", { exact: true }).fill(`Unicode ${info.project.name}`);
+  await builder.getByRole("button", { name: "＋ 項目を追加", exact: true }).click();
+  await builder.getByLabel("項目名", { exact: true }).last().fill("分類");
+  await builder.getByLabel("種類", { exact: true }).last().selectOption("select");
+  const choices = Array.from({ length: 50 }, (_, i) => String(i).padStart(2, "0") + "😀".repeat(78));
+  const options = builder.getByLabel("選択肢（1行に1つ）", { exact: true }).last();
+  await options.focus(); await page.keyboard.insertText(choices.join("\n"));
+  await expect(options).toHaveValue(choices.join("\n"));
+  await builder.getByRole("button", { name: "アプリを作成", exact: true }).click();
+  await expect(page.locator("#app-title")).toHaveText(`Unicode ${info.project.name}`);
+  const apps = await (await request.get("/api/v1/apps")).json(); const app = apps[0];
+  expect(app.fields[2].options).toEqual(choices);
+  const note = "line 1\r\n二行目\rthird";
+  const response = await request.post(`/api/v1/apps/${app.id}/records`, { headers, data: { values: { field_1: "Original", field_2: note } } });
+  expect(response.ok()).toBeTruthy(); const record = await response.json();
+  await page.reload(); await page.getByRole("button", { name: `レコード${record.id}を編集`, exact: true }).click();
+  const editor = page.locator("#record-dialog");
+  await editor.getByLabel(/^メモ/).focus();
+  await expect(editor.getByLabel(/^メモ/)).toHaveValue("line 1\n二行目\nthird");
+  await editor.getByLabel(/^名称/).fill("Renamed");
+  await editor.getByRole("button", { name: "保存", exact: true }).click();
+  await expect(editor).not.toBeVisible();
+  const saved = await (await request.get(`/api/v1/apps/${app.id}/records/${record.id}`)).json();
+  expect(saved.values.field_2).toBe(note); expect(saved.values.field_3).toBeNull();
 });

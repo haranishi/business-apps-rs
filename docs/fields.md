@@ -15,6 +15,7 @@ Apps have 1–32 fields; labels and app names have 1–80 Unicode characters.
 Missing/null values are allowed for optional fields. Empty dates/selections are sent as null by the UI.
 Required values reject missing/null; unknown keys and wrong JSON types are rejected.
 A select schema needs 1–50 distinct, trimmed options of 1–80 characters without line breaks.
+An unchanged textarea keeps its original API-supplied line endings when another field is edited.
 Other kinds cannot carry nonempty options. Option labels are compared exactly and rendered as plain text.
 
 ```json
