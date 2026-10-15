@@ -207,7 +207,7 @@ async fn format_two_migrates_choices_and_records_to_app_revision_one() {
         .call(move |c| {
             assert_eq!(
                 c.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))?,
-                3
+                4
             );
             assert_eq!(
                 c.query_row("SELECT fields FROM apps WHERE id=5", [], |r| r

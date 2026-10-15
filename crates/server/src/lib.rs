@@ -2,6 +2,7 @@
 mod assets;
 mod csv;
 pub mod store;
+mod views;
 
 use axum::{
     Json, Router,
@@ -24,6 +25,8 @@ pub enum AppError {
     Conflict,
     Unavailable,
     ExportLimit,
+    DuplicateViewName,
+    ViewLimit,
 }
 
 impl std::fmt::Display for AppError {
@@ -54,12 +57,12 @@ impl IntoResponse for AppError {
             Self::NotFound => (
                 StatusCode::NOT_FOUND,
                 "not_found",
-                "App or record not found.".into(),
+                "App, record, or view not found.".into(),
             ),
             Self::Conflict => (
                 StatusCode::CONFLICT,
                 "conflict",
-                "This app or record changed. Reload it before saving again.".into(),
+                "This item changed. Reload it before saving again.".into(),
             ),
             Self::Unavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -70,6 +73,16 @@ impl IntoResponse for AppError {
                 StatusCode::PAYLOAD_TOO_LARGE,
                 "export_limit",
                 "CSV export exceeds 10,000 records or 16 MiB. Narrow your search and retry.".into(),
+            ),
+            Self::DuplicateViewName => (
+                StatusCode::CONFLICT,
+                "duplicate_view_name",
+                "A view with this name already exists in this app.".into(),
+            ),
+            Self::ViewLimit => (
+                StatusCode::BAD_REQUEST,
+                "view_limit",
+                "An app can have at most 50 saved views.".into(),
             ),
         };
         (
@@ -111,6 +124,14 @@ pub fn router(store: Store) -> Router {
         .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/api/v1/apps", get(list_apps).post(create_app))
         .route("/api/v1/apps/{app_id}", get(get_app).put(update_app))
+        .route(
+            "/api/v1/apps/{app_id}/views",
+            get(views::list).post(views::create),
+        )
+        .route(
+            "/api/v1/apps/{app_id}/views/{view_id}",
+            get(views::read).put(views::update).delete(views::delete),
+        )
         .route(
             "/api/v1/apps/{app_id}/records",
             get(list_records).post(create_record),

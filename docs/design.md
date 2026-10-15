@@ -61,6 +61,7 @@ Only safe label/name/order changes and optional field additions are accepted; ex
 See [schema-editing rules](schema-editing.md) for these invariants and upgrade behavior.
 
 The Rust UI transition retains API v1 and SQLite format 3; it does not require a data-format migration.
+The later [saved-view feature](saved-views.md) upgrades formats 1/2/3 to format 4 in one transaction.
 A browser implementation change still needs the existing create/save/search/edit/reopen and conflict flows to remain usable.
 Changing API or saved-data contracts requires an explicit compatibility decision and the corresponding tests.
 

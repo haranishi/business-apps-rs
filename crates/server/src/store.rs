@@ -11,6 +11,7 @@ use tokio::sync::{mpsc, oneshot};
 
 type Job = Box<dyn FnOnce(&mut Connection) + Send>;
 mod migrations;
+mod views;
 
 #[derive(Clone)]
 pub struct Store {
