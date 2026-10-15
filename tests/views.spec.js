@@ -211,6 +211,77 @@ test("a delayed catalog cannot replace another app's options", async ({ page, re
   await choose(page, b); await expect(page.getByRole("cell", { name: "B", exact: true })).toBeVisible();
 });
 
+test("refreshing a deleted selected view retains a newer applied search and control draft", async ({ page, request }, info) => {
+  const { app } = await seed(request, `Deleted view query ${info.project.name}`, [{ name: "First" }, { name: "Second" }]);
+  const view = await createView(request, app, { name: "Saved", columns: ["name"] });
+  await page.goto("/"); await choose(page, view);
+  expect((await request.delete(`/api/v1/apps/${app.id}/views/${view.id}?revision=1`, { headers })).status()).toBe(204);
+  const pending = gate();
+  await page.route(`**/api/v1/apps/${app.id}/views`, async (route) => { pending.arrive(); await pending.wait; await route.continue(); });
+  await page.locator("#reload-views").click(); await pending.arrival;
+  await page.locator("#search").fill("Second"); await page.getByRole("button", { name: "検索", exact: true }).click();
+  await expect(page.locator("#record-count")).toHaveText("このページに 1 件");
+  await page.locator("#search").fill("Unsubmitted newer draft");
+  pending.release(); await expect(page.locator("#view-status")).toHaveText("");
+  await expect(page.locator("#search")).toHaveValue("Unsubmitted newer draft");
+  await expect(page.locator("#query-summary")).toHaveText("適用中：文字検索「Second」");
+  await expect(page.getByRole("cell", { name: "Second", exact: true })).toBeVisible();
+  await expect(page.locator("#record-count")).toHaveText("このページに 1 件");
+});
+
+test("refreshing a deleted selected view preserves a record dialog's draft and invoking focus", async ({ page, request }, info) => {
+  const { app } = await seed(request, `Deleted view focus ${info.project.name}`, [{ name: "Record" }]);
+  const view = await createView(request, app, { name: "Saved", columns: ["name"] });
+  await page.goto("/"); await choose(page, view);
+  expect((await request.delete(`/api/v1/apps/${app.id}/views/${view.id}?revision=1`, { headers })).status()).toBe(204);
+  const pending = gate();
+  await page.route(`**/api/v1/apps/${app.id}/views`, async (route) => { pending.arrive(); await pending.wait; await route.continue(); });
+  await page.locator("#reload-views").click(); await pending.arrival;
+  const invoking = page.getByRole("button", { name: /^レコード.*を編集$/ });
+  await invoking.click(); await page.locator("#record-name").fill("Unsaved record draft");
+  pending.release(); await expect(page.locator("#view-status")).toHaveText("");
+  await expect(page.locator("#record-name")).toHaveValue("Unsaved record draft");
+  await page.keyboard.press("Escape"); await expect(invoking).toBeFocused();
+});
+
+test("returning to the same app cannot let an older selection invalidate an open view editor", async ({ page, request }, info) => {
+  const { app: first } = await seed(request, `View ABA A ${info.project.name}`, [{ name: "A" }]);
+  const { app: second } = await seed(request, `View ABA B ${info.project.name}`, [{ name: "B" }]);
+  await createView(request, first, { name: "Existing A", columns: ["name"] });
+  await page.goto("/"); await expect(picker(page)).toBeEnabled();
+  let calls = 0; const pending = gate();
+  await page.route(`**/api/v1/apps/${first.id}/records?*`, async (route) => {
+    if (++calls !== 1) return route.continue();
+    pending.arrive(); await pending.wait; await route.continue();
+  });
+  await page.getByRole("button", { name: first.name, exact: true }).click(); await pending.arrival;
+  await page.getByRole("button", { name: second.name, exact: true }).click(); await expect(picker(page)).toBeEnabled();
+  await page.getByRole("button", { name: first.name, exact: true }).click(); await expect(picker(page)).toBeEnabled();
+  await page.locator("#save-view").click(); await page.getByLabel("一覧名", { exact: true }).fill("New after returning");
+  const finished = page.waitForResponse((response) => response.url().includes(`/apps/${first.id}/records?`));
+  pending.release(); await (await finished).finished();
+  // Flush all responses initiated by the obsolete selection before saving.
+  await page.waitForLoadState("networkidle");
+  const saved = page.waitForResponse((response) => response.url().endsWith(`/apps/${first.id}/views`) && response.request().method() === "POST");
+  await page.locator("#confirm-view").click(); expect((await saved).status()).toBe(201);
+  await expect(dialog(page)).not.toBeVisible();
+  expect((await catalog(request, first)).map((view) => view.definition.name)).toContain("New after returning");
+});
+
+test("changing columns preserves an unchanged API-created name with internal CR/LF", async ({ page, request }, info) => {
+  const { app } = await seed(request, `View name line endings ${info.project.name}`, [{ name: "Record" }]);
+  const originalName = "First\r\nSecond\rThird";
+  const view = await createView(request, app, { name: originalName, columns: ["name", "done"] });
+  await page.goto("/"); await choose(page, view); await page.locator("#edit-view").click();
+  await dialog(page).getByRole("checkbox", { name: "完了", exact: true }).uncheck();
+  await page.locator("#confirm-view").click(); await expect(dialog(page)).not.toBeVisible();
+  const [updated] = await catalog(request, app);
+  expect(updated.definition.name).toBe(originalName); expect(updated.definition.columns).toEqual(["name"]);
+  await page.locator("#edit-view").click(); await page.getByLabel("一覧名", { exact: true }).fill("Intentional rename");
+  await page.locator("#confirm-view").click(); await expect(dialog(page)).not.toBeVisible();
+  expect((await catalog(request, app))[0].definition.name).toBe("Intentional rename");
+});
+
 test("fast view selection discards earlier record responses", async ({ page, request }, info) => {
   const { app } = await seed(request, `Fast views ${info.project.name}`, [{ name: "Pending", done: false }, { name: "Finished", done: true }]);
   const a = await createView(request, app, { name: "Pending", columns: ["name"], filter: { field: "done", value: false } });
