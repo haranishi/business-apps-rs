@@ -9,7 +9,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
     routing::get,
 };
-use business_apps_domain::{NewApp, Record, ValidationError, Values};
+use business_apps_domain::{App, NewApp, Record, ValidationError, Values};
 use serde::Deserialize;
 use serde_json::json;
 use std::net::SocketAddr;
@@ -56,7 +56,7 @@ impl IntoResponse for AppError {
             Self::Conflict => (
                 StatusCode::CONFLICT,
                 "conflict",
-                "This record changed. Reload it before saving again.".into(),
+                "This app or record changed. Reload it before saving again.".into(),
             ),
             Self::Unavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,
@@ -111,6 +111,7 @@ pub fn router(store: Store) -> Router {
         .route("/favicon.ico", get(|| async { StatusCode::NO_CONTENT }))
         .route("/health", get(|| async { Json(json!({"status":"ok"})) }))
         .route("/api/v1/apps", get(list_apps).post(create_app))
+        .route("/api/v1/apps/{app_id}", get(get_app).put(update_app))
         .route(
             "/api/v1/apps/{app_id}/records",
             get(list_records).post(create_record),
@@ -196,6 +197,13 @@ async fn local_guard(request: Request, next: Next) -> Response {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct UpdateApp {
+    revision: i64,
+    name: String,
+    fields: Vec<business_apps_domain::Field>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct NewRecord {
     values: Values,
 }
@@ -228,6 +236,30 @@ async fn create_app(
     Json(input): Json<NewApp>,
 ) -> Result<impl IntoResponse, AppError> {
     Ok((StatusCode::CREATED, Json(store.create_app(input).await?)))
+}
+async fn get_app(
+    State(store): State<Store>,
+    Path(app_id): Path<i64>,
+) -> Result<Json<App>, AppError> {
+    Ok(Json(store.get_app(app_id).await?))
+}
+async fn update_app(
+    State(store): State<Store>,
+    Path(app_id): Path<i64>,
+    Json(input): Json<UpdateApp>,
+) -> Result<Json<App>, AppError> {
+    Ok(Json(
+        store
+            .update_app(
+                app_id,
+                input.revision,
+                NewApp {
+                    name: input.name,
+                    fields: input.fields,
+                },
+            )
+            .await?,
+    ))
 }
 async fn list_records(
     State(store): State<Store>,

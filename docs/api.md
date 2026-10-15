@@ -10,7 +10,9 @@ The server accepts only local Host values and same-origin browser requests.
 | --- | --- | --- |
 | GET | `/health` | Process health; does not inspect the database |
 | GET | `/api/v1/apps` | List app schemas |
-| POST | `/api/v1/apps` | Create an immutable app schema |
+| POST | `/api/v1/apps` | Create an app schema |
+| GET | `/api/v1/apps/{app_id}` | Read the current schema and app revision |
+| PUT | `/api/v1/apps/{app_id}` | Safely replace schema presentation/add optional fields if app revision matches |
 | GET | `/api/v1/apps/{app_id}/records` | List records using `limit`, `before`, and optional `q` |
 | POST | `/api/v1/apps/{app_id}/records` | Create a validated record |
 | GET | `/api/v1/apps/{app_id}/records/{id}` | Read one record within its app |
@@ -40,6 +42,10 @@ Schemas have 1–32 fields; labels/names have 1–80 characters; text values hav
 Numbers are IEEE-754-compatible and bounded to ±9,007,199,254,740,991; larger values are rejected.
 Decimal fractions use floating-point semantics; exact currency/decimal fields are a future schema feature.
 A record body is bounded to 256 KiB. Listing returns at most 100 records.
+
+Apps return `id`, `name`, `fields`, and a positive `revision`.
+PUT an app with `{ "revision": 1, "name": "New name", "fields": [...] }`; success increments its app revision.
+See [safe form editing](schema-editing.md) for allowed changes and database migration rules.
 
 ## Paging, search, and revisions
 

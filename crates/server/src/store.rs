@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::AppError;
-use business_apps_domain::{App, NewApp, Record, Values, validate_app, validate_values};
+use business_apps_domain::{
+    App, NewApp, Record, Values, validate_app, validate_app_update, validate_values,
+};
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use serde::Serialize;
 use std::{path::Path, time::Duration};
 use tokio::sync::{mpsc, oneshot};
 
 type Job = Box<dyn FnOnce(&mut Connection) + Send>;
-const APPLICATION_ID: i64 = 0x42415253;
+mod migrations;
 
 #[derive(Clone)]
 pub struct Store {
@@ -39,6 +41,7 @@ fn app_row(row: &Row<'_>) -> rusqlite::Result<App> {
         id: row.get(0)?,
         name: row.get(1)?,
         fields: decode_json(row, 2)?,
+        revision: row.get(3)?,
     })
 }
 
@@ -54,7 +57,7 @@ fn record_row(row: &Row<'_>) -> rusqlite::Result<Record> {
 fn find_app(connection: &Connection, id: i64) -> Result<App, AppError> {
     connection
         .query_row(
-            "SELECT id, name, fields FROM apps WHERE id = ?1",
+            "SELECT id, name, fields, revision FROM apps WHERE id = ?1",
             [id],
             app_row,
         )
@@ -77,42 +80,7 @@ impl Store {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, AppError> {
         let mut connection = Connection::open(path)?;
         connection.busy_timeout(Duration::from_secs(3))?;
-        let version: i64 = connection.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        let owner: i64 = connection.pragma_query_value(None, "application_id", |row| row.get(0))?;
-        if version == 0 && owner == 0 {
-            let tables: i64 = connection.query_row(
-                "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'", [], |row| row.get(0))?;
-            if tables != 0 {
-                return Err(AppError::Unavailable);
-            }
-            let transaction = connection.transaction()?;
-            transaction.execute_batch(&format!(
-                "
-                CREATE TABLE apps (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL,
-                    fields TEXT NOT NULL CHECK(json_valid(fields))
-                );
-                CREATE TABLE records (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    app_id INTEGER NOT NULL REFERENCES apps(id),
-                    revision INTEGER NOT NULL CHECK(revision > 0),
-                    values_json TEXT NOT NULL CHECK(json_valid(values_json))
-                );
-                CREATE INDEX records_by_app_id ON records(app_id, id DESC);
-                PRAGMA application_id = {APPLICATION_ID};
-                PRAGMA user_version = 2;
-            "
-            ))?;
-            transaction.commit()?;
-        } else if owner == APPLICATION_ID && version == 1 {
-            // Version 2 allows new field kinds. Rows/tables are unchanged; old binaries must refuse it.
-            let transaction = connection.transaction()?;
-            transaction.pragma_update(None, "user_version", 2)?;
-            transaction.commit()?;
-        } else if owner != APPLICATION_ID || version != 2 {
-            return Err(AppError::Unavailable);
-        }
+        migrations::prepare(&mut connection)?;
         connection.pragma_update(None, "foreign_keys", true)?;
         connection.pragma_update(None, "journal_mode", "WAL")?;
         // Keep SQLite's durable FULL synchronous default; do not trade durability for benchmark numbers.
@@ -158,13 +126,41 @@ impl Store {
 
     pub async fn list_apps(&self) -> Result<Vec<App>, AppError> {
         self.call(|connection| {
-            let mut statement =
-                connection.prepare_cached("SELECT id, name, fields FROM apps ORDER BY id DESC")?;
+            let mut statement = connection
+                .prepare_cached("SELECT id, name, fields, revision FROM apps ORDER BY id DESC")?;
             Ok(statement
                 .query_map([], app_row)?
                 .collect::<rusqlite::Result<Vec<_>>>()?)
         })
         .await
+    }
+
+    pub async fn get_app(&self, app_id: i64) -> Result<App, AppError> {
+        self.call(move |connection| find_app(connection, app_id))
+            .await
+    }
+
+    pub async fn update_app(
+        &self,
+        app_id: i64,
+        revision: i64,
+        input: NewApp,
+    ) -> Result<App, AppError> {
+        if revision <= 0 {
+            return Err(AppError::Validation("Revision must be positive.".into()));
+        }
+        self.call(move |connection| {
+            let current = find_app(connection, app_id)?;
+            if current.revision != revision { return Err(AppError::Conflict); }
+            validate_app_update(&current, &input)?;
+            let fields = serde_json::to_string(&input.fields)?;
+            let changed = connection.execute(
+                "UPDATE apps SET name = ?1, fields = ?2, revision = revision + 1 WHERE id = ?3 AND revision = ?4",
+                params![input.name, fields, app_id, revision],
+            )?;
+            if changed == 0 { return Err(AppError::Conflict); }
+            find_app(connection, app_id)
+        }).await
     }
 
     pub async fn create_record(&self, app_id: i64, values: Values) -> Result<Record, AppError> {
