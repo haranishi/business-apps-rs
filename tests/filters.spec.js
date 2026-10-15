@@ -113,14 +113,51 @@ test("app switches clear filter drafts and delayed filtered results cannot repla
 test("schema labels and choice filters stay literal through editor and settings", async ({ page, request }, info) => {
   const markup = "<img src=x onerror=globalThis.__schemaXss=1>";
   const app = await seed(request, `${markup} ${info.project.name}`, [{ name: "Literal", status: markup }]);
+  expect((await request.put(`/api/v1/apps/${app.id}`, { headers, data: { revision: app.revision, name: app.name, fields: app.fields.map((field) => field.key === "status" ? { ...field, label: markup } : field) } })).ok()).toBeTruthy();
   await page.goto("/"); await open(page); await choose(page, "status", markup, true);
   await expect(page.getByRole("heading", { name: app.name, exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: markup, exact: true })).toBeVisible();
   await page.getByRole("button", { name: /^レコード.*を編集$/ }).click();
-  await expect(page.getByLabel("状況", { exact: true })).toHaveValue(markup);
+  await expect(page.getByLabel(markup, { exact: true })).toHaveValue(markup);
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "フォーム設定", exact: true }).click();
   await expect(page.getByLabel("アプリ名", { exact: true })).toHaveValue(app.name);
   expect(await page.locator("#business-apps-root img, #business-apps-root script").count()).toBe(0);
   expect(await page.evaluate(() => globalThis.__schemaXss ?? null)).toBeNull();
+});
+
+test("multiline equality preserves newlines in the filter draft and submitted result", async ({ page, request }, info) => {
+  await seed(request, `Multiline filter ${info.project.name}`, [{ name: "Newlines", note: "a\nb" }, { name: "Single line", note: "ab" }]);
+  await page.goto("/"); await open(page);
+  await choose(page, "note", "a\nb");
+  await expect(page.getByLabel("比較する値", { exact: true })).toHaveValue("a\nb");
+  await expect(page.locator("#record-count")).toHaveText("このページに 1 件");
+  await expect(page.getByRole("cell", { name: "Newlines", exact: true })).toBeVisible();
+});
+
+test("exact empty text differs from the broader empty-cell condition", async ({ page, request }, info) => {
+  await seed(request, `Empty equality ${info.project.name}`, [{ name: "Explicit empty", note: "" }, { name: "Null", note: null }, { name: "Missing" }]);
+  await page.goto("/"); await open(page);
+  await choose(page, "note", "");
+  await expect(page.locator("#record-count")).toHaveText("このページに 1 件");
+  await expect(page.getByRole("cell", { name: "Explicit empty", exact: true })).toBeVisible();
+  await page.getByLabel("条件", { exact: true }).selectOption("empty");
+  await page.getByRole("button", { name: "条件を適用", exact: true }).click();
+  await expect(page.locator("#record-count")).toHaveText("このページに 3 件");
+});
+
+test("failed conditions cannot reuse the preceding result's next-page cursor", async ({ page, request }, info) => {
+  const app = await seed(request, `Cursor retry ${info.project.name}`, Array.from({ length: 35 }, (_, i) => ({ name: `Row ${i}`, done: false })));
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "次のページ", exact: true })).toBeEnabled();
+  await open(page);
+  const pattern = `**/api/v1/apps/${app.id}/records?*`;
+  await page.route(pattern, (route) => route.fulfill({ status: 503, contentType: "application/json", body: '{"error":{"code":"unavailable"}}' }));
+  await choose(page, "done", "true", true);
+  await expect(page.locator("#query-summary")).toContainText("一覧の取得に失敗");
+  await expect(page.getByRole("button", { name: "次のページ", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "前のページ", exact: true })).toBeDisabled();
+  await page.unroute(pattern);
+  await choose(page, "done", "false", true);
+  await expect(page.getByRole("cell", { name: "Row 34", exact: true })).toBeVisible();
 });
