@@ -87,6 +87,8 @@ def main():
                 "record_read": lambda i: send(f"{prefix}/{i % args.records + 1}"),
                 "first_page_30": lambda i: send(f"{prefix}?limit=30"),
                 "text_scan_no_match": lambda i: send(f"{prefix}?limit=30&q={quote('not-present')}") ,
+                "typed_number_match": lambda i: send(f"{prefix}?limit=30&filter={quote(json.dumps({'field': 'quantity', 'value': i % args.records}))}"),
+                "typed_empty_no_match": lambda i: send(f"{prefix}?limit=30&filter={quote(json.dumps({'field': 'active', 'value': None}))}"),
                 "record_write": lambda i: send(prefix, "POST", {"values": {"name": f"New {i}", "quantity": i, "active": False}}),
             }
             results = {}
@@ -105,6 +107,7 @@ def main():
                         "p95_ms": samples[math.ceil(len(samples) * .95) - 1], "p99_ms": samples[math.ceil(len(samples) * .99) - 1],
                         "requests_per_second": len(samples) / elapsed}
             result = {"timestamp_utc": datetime.now(timezone.utc).isoformat(), "build": "release",
+                "source_revision": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
                 "machine": {"os": platform.system(), "architecture": platform.machine(), "logical_cpus": os.cpu_count()},
                 "rustc": subprocess.check_output(["rustc", "--version"], text=True).strip(),
                 "initial_records": args.records, "concurrency": args.concurrency, "sqlite": "WAL / FULL synchronous",

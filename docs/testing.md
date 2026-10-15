@@ -37,6 +37,8 @@ Use [UI diagrams](ui.md) for the expected flow and the [project harness](../HARN
 ## Separate CI configuration from a passing run
 
 CI covers native Rust, WASM, the minimum supported Rust version, documentation, dependency policy, and browser flows.
+Server/domain PRs also run a release HTTP baseline (10,000 records, concurrency 8, 200 samples per workload), retained for seven days.
+Its latency values describe that shared runner, not a stable performance threshold or a comparison with other machines.
 Record the actual run URL, source SHA, platform/toolchain, results, and any skipped or unverified checks.
 A workflow file describes intended checks; it is not evidence that a particular revision passed.
 Every completed browser job retains synthetic reports/screenshots for seven days; failures also retain traces.
@@ -53,7 +55,7 @@ python3 scripts/benchmark.py --records 10000 --requests 500 --concurrency 8 --ou
 ```
 
 The benchmark creates and removes its own synthetic SQLite database and server process.
-It measures end-to-end HTTP latency for indexed record reads, first-page listing, no-match text scans, and writes.
+It measures end-to-end HTTP latency for indexed record reads, first-page listing, text/typed scans, and writes.
 Record build mode, machine, dataset size, concurrency, sample count, p50/p95/p99, and throughput.
 The Python client contributes overhead; HTTP results do not measure WASM download, browser rendering, or interaction latency.
 Compare the same workloads and conditions before claiming an improvement or a product comparison.
