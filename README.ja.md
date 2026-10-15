@@ -11,16 +11,15 @@
 ## まず1つ作る
 
 Rust stableとCコンパイラを用意します。最低対応バージョンは1.88です。
-最初の実装は[Draft PR 1](https://github.com/haranishi/business-apps-rs/pull/1)にあります。マージ前は次のブランチを使ってください。
 
 ```sh
-git clone --branch feat/local-app-builder https://github.com/haranishi/business-apps-rs.git
+git clone https://github.com/haranishi/business-apps-rs.git
 cd business-apps-rs
 cargo run -p business-apps-server
 ```
 
 `http://127.0.0.1:8080` を開き、アプリ名と項目を決めて、レコードを追加してください。
-テキスト・数値・チェックの項目に対応し、保存した内容は再起動後も残ります。
+テキスト・複数行・数値・チェック・日付・選択肢の項目に対応し、保存した内容は再起動後も残ります。
 データの保存先は `.data/business-apps.sqlite` です。Gitには含めません。
 このプレビューは同じ端末からの接続に限定しています。認証・権限がないため、架空のデータで試してください。
 

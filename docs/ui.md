@@ -55,6 +55,10 @@ These screenshots use synthetic customer/contact data.
 
 ![Typed fields in the app builder](assets/builder.png)
 
+The builder supports date, single-choice, and multiline fields alongside text, number, and checkbox.
+Choosing a select field reveals one option per line; the editor uses native date/select controls and a plain textarea.
+See the [rich-field UX contract](../.agent-harness/contracts/rich-fields.md) for the five design layers and acceptance checks.
+
 ## Interaction checks
 
 - Start from an empty database, create an app, and save one record.

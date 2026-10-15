@@ -11,15 +11,14 @@ This is an original implementation, independent of Cybozu and kintone. It does n
 ## Try your first app
 
 Install Rust stable (minimum 1.88) and a C toolchain (Xcode Command Line Tools on macOS; GCC/Clang on Linux).
-The first implementation is in [Draft PR 1](https://github.com/haranishi/business-apps-rs/pull/1); until it is merged, clone its branch:
 
 ```sh
-git clone --branch feat/local-app-builder https://github.com/haranishi/business-apps-rs.git
+git clone https://github.com/haranishi/business-apps-rs.git
 cd business-apps-rs
 cargo run -p business-apps-server
 ```
 
-Open `http://127.0.0.1:8080`. Choose an app name and text/number/checkbox fields, then add a record.
+Open `http://127.0.0.1:8080`. Choose an app name and text, multiline, number, checkbox, date, or select fields, then add a record.
 Search your entries, edit them, or reopen the app to read the saved data.
 The preview only accepts loopback listeners and has no user/permission model; use synthetic data.
 SQLite data lives in `.data/business-apps.sqlite`, outside Git.
